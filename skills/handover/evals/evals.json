@@ -1,0 +1,26 @@
+{
+  "skill_name": "handover",
+  "evals": [
+    {
+      "id": 0,
+      "name": "end-of-phase-standard",
+      "prompt": "OK Phase 2 of the acuity-billing invoice refactor is done and merged — PR #47 squash-merged into dev about 20 minutes ago, commit sha abc123def456. All 184 tests passing (pytest), ruff clean, mypy clean. UAT signed off for Phase 2 in docs/uat/invoice-refactor.md section 2. The full plan is at /home/xinye/repos/acuity-billing/docs/plans/invoice-refactor.md and has 5 phases. Phase 3 is 'invoice PDF rendering' and Phase 4 is 'email delivery'. My context is pretty full so I want to start Phase 3 in a fresh chat. Base branch is dev. Key guardrails from our CLAUDE.md: never commit .env files, never return access_token_enc from any endpoint, always use conventional commits, test-first for all new modules. The project memory dir is ~/.claude/projects/-home-xinye-repos-acuity-billing/memory/. Write me the handover.",
+      "expected_output": "A fenced code block containing a complete handover prompt with sections: Current status, Plan reference, Your job (Phase 3), Deliverables, Exit criteria, Execution model (subagent orchestration with 4 steps), Branch + conventions, Key guardrails, Environment / secrets, Deviations from plan, Checkpoint at end of this phase. The skill should also write a phase memory file for Phase 2 before emitting the handover.",
+      "files": []
+    },
+    {
+      "id": 1,
+      "name": "mid-phase-context-full",
+      "prompt": "context is getting pretty toasty and I want to hop to a fresh chat. I'm mid-Phase 4 of the data-pipeline rewrite (plan at /home/xinye/repos/data-pipeline/docs/plan.md). Phase 4 has 6 tasks. Done so far: task 1 schema migration (PR #92 open, not merged yet, all 47 migration tests green), task 2 bronze layer loader (merged into feat/pipeline-tiers branch, 23 new tests green). Still outstanding: task 3 silver layer loader, task 4 gold layer aggregator, task 5 orchestrator, task 6 integration test. Branch is feat/pipeline-tiers off main. Lint clean, types clean, everything i've run so far is green. Guardrails: all pipelines must emit opentelemetry traces, never use .collect() on anything > 10M rows, all schema changes go through alembic. Plan file also has phase 5 'monitoring dashboards' and phase 6 'prod rollout' after this. Write me a mid-phase handover.",
+      "expected_output": "A fenced handover prompt that correctly flags this as mid-phase (not end-of-phase). 'In-progress' section must list done tasks (1, 2) and outstanding tasks (3, 4, 5, 6). The next chat's job should be to finish Phase 4, not start Phase 5. No phase memory should be written (phase isn't done). Subagent orchestration block must be present. Verification evidence should honestly reflect partial state.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "casual-trigger-missing-info",
+      "prompt": "handover",
+      "expected_output": "The agent should not attempt to write a handover yet — it must first gather the Step 1 inputs (plan path, phase + completion status, what's been done, branch/base). Without this, any handover would be fabricated. The ideal response is a single short message asking for the missing inputs. Without the skill, the baseline agent is more likely to either make something up or produce a generic handover-looking document with placeholders.",
+      "files": []
+    }
+  ]
+}

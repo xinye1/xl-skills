@@ -40,3 +40,4 @@ Packaged `.skill` files land in `dist/` (gitignored).
 |---|---|
 | [ship](skills/ship/SKILL.md) | End-to-end code shipping: group commits → branch → test → push → PR → coderabbit review → CI → merge → local cleanup. Designed to compose cleanly with the superpowers dev-loop skills (picks up where `finishing-a-development-branch` leaves off). |
 | [execute-phased-plan](skills/execute-phased-plan/SKILL.md) | Chat-level pacing for long multi-phase plans: execute one phase, verify exit criteria, stop at the boundary, emit a self-contained handover prompt for a fresh chat. Keeps each chat's context tight around one phase. |
+| [handover](skills/handover/SKILL.md) | Emit a self-contained handover prompt that lets the user paste it into a fresh chat and continue a multi-phase plan without drift. Works end-of-phase or mid-phase; the emitted prompt instructs the next chat to orchestrate subagents per task and run overall validation itself. |
