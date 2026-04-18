@@ -26,7 +26,7 @@ Once confirmed, **state the phase boundary explicitly**: "Executing Phase 3 only
 
 This single sentence prevents the most common failure mode: Claude finishing one phase and cheerfully starting the next.
 
-## Step 1: Emit the first handover prompt — do not execute in this chat
+## Step 1: Emit the first handover prompt (skip only if executing a handover-launched chat)
 
 Default behaviour: once scope is confirmed, **immediately produce a handover prompt for the current phase** using the template in Step 5, then stop. Do not start implementing. The user pastes that prompt into a fresh chat, and Phase 1 executes there.
 
@@ -105,14 +105,14 @@ For the first handover (Step 1), there is nothing to record yet — write the me
 
 ## Step 5: Produce the next-phase handover prompt
 
-(Same template as Step 5 — whether it's the first handover emitted in Step 1 or the between-phases one after execution, the structure is identical. The only difference is that the first handover has no "Verification evidence" or "Deviations" yet — leave those sections either blank or mark "N/A — Phase 1 has not started".)
+Whether emitting the first handover (Step 1) or the between-phases one after execution, the structure is identical. The only difference is that the first handover has no "Verification evidence" or "Deviations" yet — leave those sections either blank or mark "N/A — Phase 1 has not started".
 
-## Step 5: Handover prompt template
+### Handover prompt template
 
 Use the template below. Write the prompt as a fenced code block so the user can copy the whole thing into the next chat in one go. Do not rephrase, summarise, or shorten the template — past sessions where the handover was "tightened up" lost load-bearing context.
 
 ~~~markdown
-# Handover — Family Finance Hub, Phase <N+1>
+# Handover — <project name>, Phase <N+1>
 
 ## Current status (as of <YYYY-MM-DD HH:MM>)
 
@@ -206,8 +206,8 @@ Send the handover prompt and only the handover prompt — don't bury it under a 
 | Skill | Role |
 |---|---|
 | `superpowers:writing-plans` | Produces the phased plan that this skill then executes. If the plan isn't phased, suggest re-planning with phases before invoking this skill. |
-| `superpowers:subagent-driven-development` | Most common Step 1 execution mode for independent-task phases. |
-| `superpowers:executing-plans` | Step 1 execution mode for sequential phases or when tasks share state. |
+| `superpowers:subagent-driven-development` | Most common Step 2 execution mode for independent-task phases. |
+| `superpowers:executing-plans` | Step 2 execution mode for sequential phases or when tasks share state. |
 | `superpowers:verification-before-completion` | Enforced at Step 3 — no handover without fresh verification evidence. |
 | `superpowers:finishing-a-development-branch` / `ship` | The last activity of every phase — merge the PR, clean up local state, then write the phase memory (Step 4), then emit the handover. |
 | `superpowers:writing-skills` | Irrelevant to runtime, but this skill itself was written with it. |
