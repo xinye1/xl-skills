@@ -18,9 +18,8 @@ Before doing anything, confirm with the user — in one short message — these 
 1. **Plan file path** (absolute, so the handover prompt can reference it verbatim).
 2. **Which phase to execute now.** If unclear from the transcript, ask: "Phases 0–2 look merged from git log — start Phase 3 next?"
 3. **Execution mode for this phase.** Options:
-   - **Subagent-driven** (recommended for 5+ independent tasks) → invokes `superpowers:subagent-driven-development`
-   - **Inline** (for shorter phases or phases with tight sequential deps) → invokes `superpowers:executing-plans` or manual step-through
-   - **Manual** (user will drive, Claude assists) → no sub-skill invocation
+   - **Subagent-driven** (default) → subagent per task, each runs task-level tests and reports back; Claude runs overall validation (Step 2)
+   - **Manual** (user will drive, Claude assists) → no subagent dispatch
 
 Once confirmed, **state the phase boundary explicitly**: "Executing Phase 3 only. Will stop at Phase 3 exit criteria and produce a handover prompt — no Phase 4 work."
 
