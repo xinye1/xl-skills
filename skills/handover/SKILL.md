@@ -37,7 +37,7 @@ If the user triggered this skill casually ("handover please"), these don't all n
 
 ## Step 2: Verify exit criteria (end-of-phase handovers only)
 
-Skip this step for mid-phase handovers — instead, jump to Step 4 and record partial state honestly.
+Skip both this step and Step 3 for mid-phase handovers — jump straight to Step 4 and record partial state honestly. (Step 3 writes a phase-complete memory entry; there's no complete phase yet, so there's nothing to memorialise.)
 
 For end-of-phase, before the handover goes out, the phase has to actually be done. Apply `superpowers:verification-before-completion`:
 
@@ -204,7 +204,7 @@ Do not bury the prompt under a chatty summary; the user needs to copy it cleanly
 |---|---|
 | `execute-phased-plan` | Governs the rhythm of long multi-phase plans end-to-end; this skill is the "emit the handover" step of that rhythm, extracted so it can also be invoked standalone whenever context fills up. |
 | `superpowers:executing-plans` | Referenced inside the handover prompt — each subagent spawned by the next chat follows this skill to execute its individual task. |
-| `superpowers:subagent-driven-development` | Background pattern for the Step 4 orchestration model embedded in the prompt. |
+| `superpowers:subagent-driven-development` | Background pattern for the orchestration model embedded *inside* the emitted handover prompt — the receiving chat uses that pattern to dispatch per-task subagents. |
 | `superpowers:verification-before-completion` | Enforced at Step 2 — no end-of-phase handover without fresh verification evidence. |
 | `ship` | Usually the last activity of the phase being handed off — push, review, merge, clean up — before the handover fires. |
 
