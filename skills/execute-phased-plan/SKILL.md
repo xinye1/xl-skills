@@ -40,14 +40,46 @@ Why this matters: if the user invoked you after brainstorming, plan-writing, spe
 
 In all other cases, emit the handover and stop. If you're unsure, emit the handover and ask: "I've drafted the Phase N handover. Want to start Phase N in a fresh chat (recommended), or execute here?"
 
-## Step 2: Execute the single phase
+## Step 2: Execute the single phase via subagent orchestration
 
-Hand off to the chosen execution sub-skill. Apply the usual dev-loop conventions from CLAUDE.md (conventional commits, branch off base, PR → base, CodeRabbit, CI green, squash-merge — usually via the `ship` skill).
+**Default execution model for every phase:** decompose the phase into its constituent tasks (as listed in the plan), then orchestrate subagents — one per task. Do not execute tasks yourself inline unless the user explicitly chooses Manual mode in Step 0.
+
+### 2a: Decompose and dispatch
+
+Read the plan's task list for this phase. For each task:
+
+1. **Classify dependencies** — which tasks are independent (can run in parallel) vs. sequential (must wait for a prior result).
+2. **Dispatch subagents** — launch independent tasks in parallel; launch sequential tasks only after their dependencies report back. Each subagent prompt must be self-contained: include the plan file path, branch name, relevant guardrails from CLAUDE.md, and a clear definition of done for that task **including the task-level tests the subagent must run and pass before reporting back**.
+
+Each subagent should follow `superpowers:executing-plans` internally. Apply the usual dev-loop conventions from CLAUDE.md (conventional commits, branch off base, PR → base, CodeRabbit, CI green, squash-merge).
+
+### 2b: Receive reports and coordinate
+
+As subagents complete, collect their reports. Each report must include:
+
+- What was implemented
+- Which tests were run and their result (`X/Y passing`, or `lint clean`, etc.)
+- Any deviations from the plan, with reasons
+- Any carry-forward notes for dependent tasks
+
+If a subagent reports a failure or deviation that blocks a dependent task, **stop and resolve it before dispatching downstream subagents**. Do not cascade failures forward.
+
+If a subagent's task-level tests are red, the subagent must fix and re-run before the report is accepted as complete. A report that says "tests failing" is not a completed task.
+
+### 2c: Overall validation testing
+
+Once all subagents have reported back with green task-level results, **run the full integration/validation test suite yourself** (do not delegate this):
+
+- Full test suite (`X/Y passing`)
+- Lint + type-check (whatever the repo uses: `ruff`, `mypy`, `eslint`, `tsc`)
+- Any integration or E2E tests specified in the plan's exit criteria
+
+This is the phase-level gate — individual task tests confirm local correctness; overall validation confirms the tasks integrate correctly. If overall validation is red, diagnose, fix, and re-run before moving to Step 3.
 
 While executing, keep three things close to hand:
 
 - **Exit criteria** for this phase from the plan (tests passing, PR merged, UAT green, whatever the plan states).
-- **Deviations from plan** — note any design choices that drift from the written plan, with reasons. These go into the handover.
+- **Deviations from plan** — aggregate deviations reported by subagents, plus any discovered during overall validation. These go into the handover.
 - **Secrets / credentials** provided inline by the user — mark their origin so the handover can reference them without re-leaking them into git-tracked files.
 
 ## Step 3: Verify exit criteria before stopping
@@ -150,8 +182,7 @@ Phase-specific plan (if one exists): `<path under docs/superpowers/plans/>`
 
 ## Execution mode
 
-Use the **`<superpowers:subagent-driven-development | superpowers:executing-plans | manual>`** skill.
-<one sentence on why — e.g. "Tasks are mostly independent, subagents parallelise well.">
+Use **subagent orchestration** (Step 2 of the `execute-phased-plan` skill): decompose this phase into its tasks, dispatch one subagent per task (parallel where independent, sequential where dependent), receive task-level test reports, then run overall validation yourself before moving to Step 3. Each subagent must run and pass its task-level tests before its report is accepted.
 
 ## Branch + conventions
 
@@ -206,9 +237,9 @@ Send the handover prompt and only the handover prompt — don't bury it under a 
 | Skill | Role |
 |---|---|
 | `superpowers:writing-plans` | Produces the phased plan that this skill then executes. If the plan isn't phased, suggest re-planning with phases before invoking this skill. |
-| `superpowers:subagent-driven-development` | Most common Step 2 execution mode for independent-task phases. |
-| `superpowers:executing-plans` | Step 2 execution mode for sequential phases or when tasks share state. |
-| `superpowers:verification-before-completion` | Enforced at Step 3 — no handover without fresh verification evidence. |
+| `superpowers:executing-plans` | Used *inside* each subagent's prompt — subagents follow this skill to execute their individual task. |
+| `superpowers:subagent-driven-development` | Referenced by Step 2 orchestration model for parallel dispatch patterns. |
+| `superpowers:verification-before-completion` | Enforced at Step 3 — no handover without fresh verification evidence. Also enforced per-subagent: each subagent must pass task-level tests before its report is accepted. |
 | `superpowers:finishing-a-development-branch` / `ship` | The last activity of every phase — merge the PR, clean up local state, then write the phase memory (Step 4), then emit the handover. |
 | `superpowers:writing-skills` | Irrelevant to runtime, but this skill itself was written with it. |
 
