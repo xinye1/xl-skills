@@ -15,24 +15,79 @@ Each skill is a directory under `skills/` containing a `SKILL.md` with YAML fron
 
 ## Installing a skill locally
 
-Symlink any skill into `~/.claude/skills/`:
+Symlink any skill into `~/.claude/skills/` so edits in this repo take effect immediately.
+
+**macOS / Linux** (run from the repo root):
 
 ```bash
-ln -s /home/xinye/repos/xl-skills/skills/<name> ~/.claude/skills/<name>
+ln -s "$(pwd)/skills/<name>" ~/.claude/skills/<name>
 ```
 
-Symlinking (rather than copying) means edits in this repo take effect immediately in every Claude Code session.
+**Windows** (Command Prompt, run from the repo root):
+
+```cmd
+mklink /J "%USERPROFILE%\.claude\skills\<name>" "%CD%\skills\<name>"
+```
+
+`/J` creates a directory junction, which works without admin access or Developer Mode.
+
+## Installing all skills at once
+
+**macOS / Linux**:
+
+```bash
+for dir in skills/*/; do
+  ln -s "$(pwd)/$dir" ~/.claude/skills/$(basename "$dir")
+done
+```
+
+**Windows** (Command Prompt):
+
+```cmd
+for /d %d in (skills\*) do mklink /J "%USERPROFILE%\.claude\skills\%~nd" "%CD%\%d"
+```
+
+**Windows** (PowerShell):
+
+```powershell
+New-Item -ItemType Directory -Force "$env:USERPROFILE\.claude\skills" | Out-Null
+$repoRoot = $PWD.Path
+dir "$repoRoot\skills" | ForEach-Object {
+  $link = "$env:USERPROFILE\.claude\skills\$($_.Name)"
+  if (-not (Test-Path $link)) {
+    New-Item -ItemType Junction -Path $link -Target "$repoRoot\skills\$($_.Name)" | Out-Null
+    Write-Host "Linked: $($_.Name)"
+  } else {
+    Write-Host "Skipped (exists): $($_.Name)"
+  }
+}
+```
 
 ## Packaging a skill for sharing
 
-From the skill-creator plugin directory:
+From the skill-creator plugin directory (run from this repo's root):
 
 ```bash
-cd ~/.claude/plugins/cache/claude-plugins-official/skill-creator/unknown/skills/skill-creator
-python -m scripts.package_skill /home/xinye/repos/xl-skills/skills/<name>
+# The version segment in the path may vary — check with:
+# ls ~/.claude/plugins/cache/claude-plugins-official/skill-creator/
+SKILL_CREATOR=~/.claude/plugins/cache/claude-plugins-official/skill-creator/*/skills/skill-creator
+(cd "$SKILL_CREATOR" && python -m scripts.package_skill "$(pwd -P)/../../../../../../skills/<name>")
+```
+
+Or set an explicit path to this repo:
+
+```bash
+REPO=/path/to/xl-skills
+SKILL_CREATOR=~/.claude/plugins/cache/claude-plugins-official/skill-creator/*/skills/skill-creator
+(cd "$SKILL_CREATOR" && python -m scripts.package_skill "$REPO/skills/<name>")
 ```
 
 Packaged `.skill` files land in `dist/` (gitignored).
+
+## To learn more
+
+- [Claude Code skills documentation](https://code.claude.com/docs/en/skills) — the official guide to creating, configuring, and sharing skills
+- [skill-creator plugin](https://github.com/anthropics/claude-plugins-official/tree/main/plugins/skill-creator) — the official plugin used to generate and package skills, and the tool used to build the skills in this repo
 
 ## Current skills
 
