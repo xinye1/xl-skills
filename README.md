@@ -20,6 +20,7 @@ Symlink any skill into `~/.claude/skills/` so edits in this repo take effect imm
 **macOS / Linux** (run from the repo root):
 
 ```bash
+mkdir -p ~/.claude/skills
 ln -s "$(pwd)/skills/<name>" ~/.claude/skills/<name>
 ```
 
@@ -36,6 +37,7 @@ mklink /J "%USERPROFILE%\.claude\skills\<name>" "%CD%\skills\<name>"
 **macOS / Linux**:
 
 ```bash
+mkdir -p ~/.claude/skills
 for dir in skills/*/; do
   ln -s "$(pwd)/$dir" ~/.claude/skills/$(basename "$dir")
 done
@@ -44,6 +46,7 @@ done
 **Windows** (Command Prompt):
 
 ```cmd
+if not exist "%USERPROFILE%\.claude\skills" mkdir "%USERPROFILE%\.claude\skills"
 for /d %d in (skills\*) do mklink /J "%USERPROFILE%\.claude\skills\%~nd" "%CD%\%d"
 ```
 
@@ -52,7 +55,7 @@ for /d %d in (skills\*) do mklink /J "%USERPROFILE%\.claude\skills\%~nd" "%CD%\%
 ```powershell
 New-Item -ItemType Directory -Force "$env:USERPROFILE\.claude\skills" | Out-Null
 $repoRoot = $PWD.Path
-dir "$repoRoot\skills" | ForEach-Object {
+Get-ChildItem -Directory "$repoRoot\skills" | ForEach-Object {
   $link = "$env:USERPROFILE\.claude\skills\$($_.Name)"
   if (-not (Test-Path $link)) {
     New-Item -ItemType Junction -Path $link -Target "$repoRoot\skills\$($_.Name)" | Out-Null
@@ -71,7 +74,8 @@ From the skill-creator plugin directory (run from this repo's root):
 # The version segment in the path may vary — check with:
 # ls ~/.claude/plugins/cache/claude-plugins-official/skill-creator/
 SKILL_CREATOR=~/.claude/plugins/cache/claude-plugins-official/skill-creator/*/skills/skill-creator
-(cd "$SKILL_CREATOR" && python -m scripts.package_skill "$(pwd -P)/../../../../../../skills/<name>")
+REPO_SKILL="$(pwd)/skills/<name>"
+(cd "$SKILL_CREATOR" && python -m scripts.package_skill "$REPO_SKILL")
 ```
 
 Or set an explicit path to this repo:
