@@ -38,7 +38,7 @@ Classify and announce the detected state in one line (e.g. "Resuming at merge fo
 | **B2. PR open, changes requested** | clean + in sync, open PR with `reviewDecision: CHANGES_REQUESTED` | Step 5 — fix issues first, then re-review |
 | **B3. PR approved, CI not green** | clean + in sync, open PR with `reviewDecision: APPROVED`, at least one check pending or failing | Step 6 |
 | **B4. PR approved + CI green** | clean + in sync, open PR with `reviewDecision: APPROVED`, all checks passed (or `statusCheckRollup` empty — repo has no CI configured, treat as green) | Step 7 — skip straight to merge |
-| **C. Mixed** | dirty tree + open PRs on other branches (not the current one) | Handle dirty tree through Steps 1–4, then loop open PRs from Step 5 at their own detected sub-state |
+| **C. Mixed** | dirty tree, current branch has no open PR, but other branches do | Handle dirty tree through Steps 1–4, then loop open PRs from Step 5 at their own detected sub-state |
 | **D. Post-merge cleanup** | `gh pr list --state merged` returns a PR whose `headRefName` still exists as a local branch | Step 8. If the user is currently *on* that branch and the tree is dirty, stop and flag — the work belongs on a fresh branch off base, not on a stale-merged one |
 | **E. Nothing to do** | none of the above match (e.g. clean tree on base branch, no open PRs, no surviving post-merge branches) | Report "nothing to ship" and stop — no git operations |
 
