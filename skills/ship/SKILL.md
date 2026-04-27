@@ -1,6 +1,6 @@
 ---
 name: ship
-description: Ship code changes end-to-end — identify logical commits, branch, commit, run local tests, push, create PR, coordinate subagent code review, watch CI, merge, and clean up local branch + worktree. Use whenever the user says "ship it", "ship the code", "ship the changes", "ship these changes", "let's ship", or otherwise asks to push/PR/merge current work. Also use when resuming after superpowers:finishing-a-development-branch has already created a PR — ship picks up at review, CI, merge, and local cleanup. This skill is the merge-side counterpart to the superpowers dev-loop skills; prefer it over ad-hoc git/gh commands whenever shipping is in scope.
+description: Ship code changes end-to-end — identify logical commits, branch, commit, run local tests, push, create PR, coordinate subagent code review, watch CI, merge, and clean up local branch + worktree. Use whenever the user says "ship it", "ship the code", "ship the changes", "ship these changes", "let's ship", or otherwise asks to push/PR/merge current work. Also use when resuming mid-journey: committed-but-not-pushed, PR open awaiting review, PR approved and ready to merge, or just needing local branch cleanup after a merge. The skill auto-detects which stage to start from. This is the merge-side counterpart to the superpowers dev-loop skills; prefer it over ad-hoc git/gh commands whenever shipping is in scope.
 ---
 
 # Ship — end-to-end code shipping
@@ -15,18 +15,31 @@ Run in parallel:
 
 - `git status --porcelain`
 - `git branch --show-current`
-- `gh pr list --state open --author @me --json number,headRefName,baseRefName,title,statusCheckRollup`
+- `git rev-list @{upstream}..HEAD --count 2>/dev/null || echo "no-upstream"`
+- `gh pr list --state open --author @me --json number,headRefName,baseRefName,title,reviewDecision,statusCheckRollup`
+- `gh pr list --state merged --author @me --limit 10 --json number,headRefName` (then cross-check each `headRefName` against `git branch` to find local branches that survived a remote merge)
 
-Classify and announce the detected state in one line (e.g. "Resuming at PR review for #42") before proceeding:
+Classify and announce the detected state in one line (e.g. "Resuming at merge for #42 — approved + CI green") before proceeding:
 
 | State | Signal | Entry point |
 |---|---|---|
-| **A. Fresh changes** | dirty tree, no open PR for current branch | Step 1 |
-| **B. Resume after push** | clean tree on a feature branch with an open PR | Step 5 |
-| **C. Mixed** | dirty tree + open PRs on other branches | Handle dirty tree through Steps 1–8, then loop through open PRs from Step 5 |
-| **D. Nothing to do** | clean tree on base branch, no open PRs | Report "nothing to ship" and stop — no git operations |
+| **A. Uncommitted changes** | dirty tree (`git status --porcelain` non-empty), no open PR for current branch | Step 1 |
+| **A2. Committed, not pushed** | clean tree on a feature branch, commits ahead of remote (`rev-list` count > 0, or `no-upstream`), no open PR | Step 4 |
+| **B. PR open, awaiting review** | clean tree, open PR, `reviewDecision` is `null` or `REVIEW_REQUIRED` | Step 5 |
+| **B2. PR open, changes requested** | open PR with `reviewDecision: CHANGES_REQUESTED` | Step 5 — fix issues first, then re-review |
+| **B3. PR approved, CI not green** | open PR with `reviewDecision: APPROVED`, at least one check pending or failing | Step 6 |
+| **B4. PR approved + CI green** | open PR with `reviewDecision: APPROVED`, all checks passed | Step 7 — skip straight to merge |
+| **C. Mixed** | dirty tree + open PRs on other branches | Handle dirty tree through Steps 1–4, then loop open PRs from Step 5 |
+| **D. Post-merge cleanup** | `gh pr list --state merged` returns a PR whose `headRefName` still exists as a local branch | Step 8 |
+| **E. Nothing to do** | clean tree on base branch, no open PRs, no surviving post-merge branches | Report "nothing to ship" and stop — no git operations |
 
-Why this matters: superpowers' `finishing-a-development-branch` (Option 2) ends after `gh pr create` — its job is done. Ship takes over from there. The state detection is what lets the two flows compose without friction.
+**Disambiguation notes:**
+
+- Prefer the most-advanced state when multiple apply. Example: PR approved + CI green beats "open PR awaiting review" — go to Step 7, not Step 5.
+- State C (mixed) processes the dirty-tree work as a *new* group through Steps 1–4, then resumes existing open PRs starting at their own detected sub-state (B / B2 / B3 / B4).
+- State D beats E: if local cleanup is needed, do it — don't report "nothing to ship".
+
+Why this matters: superpowers' `finishing-a-development-branch` (Option 2) ends after `gh pr create` — its job is done. Ship takes over from there. The granular detection is what lets the two flows compose without friction and lets the user invoke ship at any point in the journey.
 
 ## Step 1: Identify logical change groups (State A only)
 
