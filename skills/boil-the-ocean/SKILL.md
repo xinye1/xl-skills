@@ -77,7 +77,7 @@ In both cases, do what the user / project asked, not what this skill would have 
 
 | Skill | How it relates |
 |---|---|
-| `superpowers:test-driven-development` | Adjacent. TDD is one *method* for hitting the test bar this skill insists on. If you're using TDD, the test axis of this skill is satisfied automatically. |
+| `superpowers:test-driven-development` | Narrower in scope. TDD is one *method* for hitting the test bar this skill insists on — if you're using TDD, the test axis is satisfied automatically. This skill adds docs and loose-ends closure on top. |
 | `superpowers:verification-before-completion` | Strict prerequisite. The done-check above is the slightly stronger version: not just "did you verify?" but "did you finish?" |
 | `superpowers:systematic-debugging` | The mechanism for "real fix, not workaround". When debugging, run the systematic-debugging loop until the root cause is identified, then fix the root cause — that's what makes the difference between a workaround and a real fix. |
 | `ship` | The natural next step after the done-check passes. Ship is for moving completed work to merged; this skill is for getting the work to "completed" in the first place. |
