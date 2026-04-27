@@ -11,11 +11,19 @@ The workflow is designed so that *any* starting state — uncommitted work, alre
 
 ## Step 0: Detect starting state
 
-Run in parallel:
+First detect the base branch (used by several signals below):
+
+```bash
+BASE=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/origin/||')
+# Fall back: dev → main → master
+```
+
+Then run in parallel:
 
 - `git status --porcelain`
-- `git branch --show-current`
+- `git branch --show-current` (returns empty on detached HEAD — see caveat below)
 - `git rev-list @{upstream}..HEAD --count 2>/dev/null || echo "no-upstream"`
+- `git rev-list "origin/$BASE..HEAD" --count 2>/dev/null` (commits beyond base — used to disambiguate A2 from a brand-new empty branch)
 - `gh pr list --state open --author @me --json number,headRefName,baseRefName,title,reviewDecision,statusCheckRollup`
 - `gh pr list --state merged --author @me --limit 10 --json number,headRefName` (then cross-check each `headRefName` against `git branch` to find local branches that survived a remote merge)
 
@@ -24,24 +32,34 @@ Classify and announce the detected state in one line (e.g. "Resuming at merge fo
 | State | Signal | Entry point |
 |---|---|---|
 | **A. Uncommitted changes** | dirty tree (`git status --porcelain` non-empty), no open PR for current branch | Step 1 |
-| **A2. Committed, not pushed** | clean tree on a feature branch, commits ahead of remote (`rev-list` count > 0, or `no-upstream`), no open PR | Step 4 |
-| **B. PR open, awaiting review** | clean tree, open PR, `reviewDecision` is `null` or `REVIEW_REQUIRED` | Step 5 |
-| **B2. PR open, changes requested** | open PR with `reviewDecision: CHANGES_REQUESTED` | Step 5 — fix issues first, then re-review |
-| **B3. PR approved, CI not green** | open PR with `reviewDecision: APPROVED`, at least one check pending or failing | Step 6 |
-| **B4. PR approved + CI green** | open PR with `reviewDecision: APPROVED`, all checks passed | Step 7 — skip straight to merge |
-| **C. Mixed** | dirty tree + open PRs on other branches | Handle dirty tree through Steps 1–4, then loop open PRs from Step 5 |
-| **D. Post-merge cleanup** | `gh pr list --state merged` returns a PR whose `headRefName` still exists as a local branch | Step 8 |
-| **E. Nothing to do** | clean tree on base branch, no open PRs, no surviving post-merge branches | Report "nothing to ship" and stop — no git operations |
+| **A2. Committed, not pushed** | clean tree on a feature branch with no open PR AND ((commits-ahead-of-upstream > 0) OR (`no-upstream` AND commits-beyond-base > 0)) | Step 4 |
+| **A3. Iteration on existing PR** | dirty tree OR commits-ahead-of-upstream > 0, on a branch whose own PR is currently open | Commit any dirty work (Step 2 logic — reuse the existing branch) and/or push (Step 4 push only — PR already exists), then re-evaluate as B / B2 / B3 / B4 |
+| **B. PR open, awaiting review** | clean tree, in sync with remote, open PR, `reviewDecision` is `null` or `REVIEW_REQUIRED` | Step 5 |
+| **B2. PR open, changes requested** | clean + in sync, open PR with `reviewDecision: CHANGES_REQUESTED` | Step 5 — fix issues first, then re-review |
+| **B3. PR approved, CI not green** | clean + in sync, open PR with `reviewDecision: APPROVED`, at least one check pending or failing | Step 6 |
+| **B4. PR approved + CI green** | clean + in sync, open PR with `reviewDecision: APPROVED`, all checks passed (or `statusCheckRollup` empty — repo has no CI configured, treat as green) | Step 7 — skip straight to merge |
+| **C. Mixed** | dirty tree + open PRs on other branches (not the current one) | Handle dirty tree through Steps 1–4, then loop open PRs from Step 5 at their own detected sub-state |
+| **D. Post-merge cleanup** | `gh pr list --state merged` returns a PR whose `headRefName` still exists as a local branch | Step 8. If the user is currently *on* that branch and the tree is dirty, stop and flag — the work belongs on a fresh branch off base, not on a stale-merged one |
+| **E. Nothing to do** | none of the above match (e.g. clean tree on base branch, no open PRs, no surviving post-merge branches) | Report "nothing to ship" and stop — no git operations |
 
-**Disambiguation notes:**
+**Resolution order when multiple states match — evaluate top-to-bottom and stop at the first match:**
 
-- Prefer the most-advanced state when multiple apply. Example: PR approved + CI green beats "open PR awaiting review" — go to Step 7, not Step 5.
-- State C (mixed) processes the dirty-tree work as a *new* group through Steps 1–4, then resumes existing open PRs starting at their own detected sub-state (B / B2 / B3 / B4).
-- State D beats E: if local cleanup is needed, do it — don't report "nothing to ship".
+1. **D** — clean up surviving merged-PR branches before anything else
+2. **C** — multi-context work; iterate
+3. **A3** — PR for current branch already exists; iteration loop wins over generic "fresh changes"
+4. **A** — dirty tree, no PR for current branch
+5. **A2** — clean + committed + not pushed
+6. **B4** → **B3** → **B2** → **B** — most-advanced PR state wins (approved + green > approved + red > changes requested > awaiting review)
+7. **E** — nothing matched
+
+**Caveats:**
+
+- **Detached HEAD** (`git branch --show-current` empty): `rev-list @{upstream}..HEAD` will fall through to `no-upstream`, which would otherwise misclassify as A2. Treat detached HEAD as E and flag — the user should check out a branch first.
+- **Empty `statusCheckRollup`** for B4: a repo with no CI configured returns an empty array; treat empty-checks as green (the equivalent of "nothing to fail"). If the repo *should* have CI but the array is empty, that's a config bug — flag rather than merging blind.
 
 Why this matters: superpowers' `finishing-a-development-branch` (Option 2) ends after `gh pr create` — its job is done. Ship takes over from there. The granular detection is what lets the two flows compose without friction and lets the user invoke ship at any point in the journey.
 
-## Step 1: Identify logical change groups (State A only)
+## Step 1: Identify logical change groups (State A or C)
 
 Run `git diff --name-only` and `git status`. Group files by subsystem so each group is a coherent, independently reviewable PR.
 
