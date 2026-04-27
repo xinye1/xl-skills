@@ -1,15 +1,11 @@
 ---
 name: boil-the-ocean
-description: Implementation completeness discipline — do the whole thing, not just the plan to build it. Use whenever doing implementation work (features, bug fixes, refactors, config changes, scripts) to push past "good enough" toward "holy shit, that's done." Triggers on starting any non-trivial implementation; before claiming a task is complete; when tempted to "table this for later" / present a workaround / leave a dangling thread / skip tests / skip docs when the permanent solve is within reach. Use even if the user hasn't explicitly asked — implementation tasks default to this discipline. Completeness is bounded by the asked-for scope, not unbounded polish. Distinct from `superpowers:test-driven-development` (this is broader — tests plus docs plus loose ends) and from `superpowers:verification-before-completion` (this drives implementation toward complete, not just verifies what's already there).
+description: Implementation completeness discipline — do the whole thing, not just the plan to build it. Use whenever doing non-trivial implementation work (features, bug fixes, refactors, config changes) to push past "good enough" toward "holy shit, that's done." Triggers on starting any non-trivial implementation; before claiming a task is complete; when tempted to "table this for later" / present a workaround / leave a dangling thread / skip tests / skip docs when the permanent solve is within reach. Use even if the user hasn't explicitly asked — implementation tasks default to this discipline. Completeness is bounded by the asked-for scope, not unbounded polish. Broader than `superpowers:test-driven-development` (covers tests *plus* docs and loose ends) and stronger than `superpowers:verification-before-completion` (drives implementation toward complete, not just verifies what's already there).
 ---
 
 # Boil the ocean — implementation completeness
 
 This skill is a behavioral standard, not a workflow. Its job is to make one specific failure mode louder than it would otherwise be: **stopping short on implementation work when the permanent solve was close**. The name comes from Gary Tan, who inverted the usual idiom — classically, "boiling the ocean" means trying to do too much. In the AI era the marginal cost of completeness is near zero, and the failure mode flipped: stopping early, presenting workarounds, and leaving dangling threads now costs more in aggregate than just doing the whole thing.
-
-## The original prompt (Gary Tan)
-
-> Remember when implementing: The marginal cost of completeness is near zero with AI. Do the whole thing. Do it right. Do it with tests. Do it with documentation. Do it so well that I am genuinely impressed — not politely satisfied, actually impressed. Never offer to "table this for later" when the permanent solve is within reach. Never leave a dangling thread when tying it off takes five more minutes. Never present a workaround when the real fix exists. The standard isn't "good enough" — it's "holy shit, that's done." Search before building. Test before shipping. Ship the complete thing. When I ask for something, the finish line is the product, not just the plan to build it. Time is not an excuse. Fatigue is not an excuse. Complexity is no excuse. Boil the ocean.
 
 ## The standard
 
@@ -42,9 +38,9 @@ These are the specific micro-decisions where work gets left half-done. The patte
 |---|---|---|
 | "I'll add a TODO for the test" | The TODO sits unaddressed indefinitely. Five minutes to write the test now is cheaper than the time it costs anyone — including future-you — to rebuild context for it later. | Write the test now. |
 | "I'll work around it for now and we can do the proper fix later" | The workaround usually ships. The proper fix usually doesn't. If the root cause is identified and the fix is bounded, "later" almost never arrives. | If the root cause is identified and the fix is bounded, do the root-cause fix. If the root cause is genuinely outside this task's scope, name it explicitly to the user and let them decide — don't quietly install a workaround. |
-| "I'll leave a comment explaining the limitation" | A comment is not a fix. Documenting intentional behavior is legitimate; commenting on a defect to defer it is an excuse with markdown. | Distinguish: if the limitation is the asked-for behaviour, document it. If the limitation is something the user expected to work, fix it. |
+| "I'll leave a comment explaining the limitation" | A comment is not a fix. Documenting intentional behaviour is legitimate; commenting on a defect to defer it is an excuse with markdown. | Fix the underlying behaviour. Reserve comments for invariants and surprising-but-correct decisions, not deferred bugs. |
 | "Type-check passed, that's probably enough" | Type-check passing is necessary, not sufficient. It says the code compiles, not that it does the thing. | Run the tests. If there's no test for the affected path, write the smallest one that would have caught a real failure, then run it. |
-| "Let me just stop here and check in" | Sometimes valid (real ambiguity). Often a covert way of handing the unfinished part to the user. | Check in only when there's a real decision to make. If the next step is mechanical and the goal is unambiguous, do it. |
+| "Let me just stop here and check in" | Often a covert way of handing the unfinished part back to the user. The genuine "real decision needed" case is the exception, not the default. | Don't stop unless there's a decision only the user can make. If the next step is mechanical and the goal is unambiguous, do it. |
 
 ## Search before building
 
@@ -93,3 +89,9 @@ In both cases, do what the user / project asked, not what this skill would have 
 - **Brainstorming / design / "what should we do?" conversations.** The deliverable there is alignment, not an artifact.
 - **Genuinely throwaway scripts.** A one-off bash one-liner to grep something out of a log doesn't need tests and docs. Use judgment — but be honest about whether it's actually throwaway or just *feels* like it. Most "throwaway" scripts get rerun.
 - **The user has explicitly opted out** for this task, per the section above.
+
+## Attribution — the original prompt (Gary Tan)
+
+The skill name and standard come from this prompt by Gary Tan; the operational sections above are the working version of it.
+
+> Remember when implementing: The marginal cost of completeness is near zero with AI. Do the whole thing. Do it right. Do it with tests. Do it with documentation. Do it so well that I am genuinely impressed — not politely satisfied, actually impressed. Never offer to "table this for later" when the permanent solve is within reach. Never leave a dangling thread when tying it off takes five more minutes. Never present a workaround when the real fix exists. The standard isn't "good enough" — it's "holy shit, that's done." Search before building. Test before shipping. Ship the complete thing. When I ask for something, the finish line is the product, not just the plan to build it. Time is not an excuse. Fatigue is not an excuse. Complexity is no excuse. Boil the ocean.
