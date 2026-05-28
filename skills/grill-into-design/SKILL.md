@@ -17,7 +17,7 @@ This is the user's own hybrid of two upstream skills: `superpowers:brainstorming
 
 **HARD-GATE.** Do not write code, scaffold a project, create implementation files, or invoke any implementation skill until you have presented a design AND the user has approved it. This applies to every project regardless of perceived simplicity. The design can be short (a few paragraphs for genuinely small work), but you MUST present it and get approval.
 
-**One question at a time.** Never batch questions. If a topic needs more exploration, break it into multiple sequential questions. Multiple-choice with the recommended answer first is preferred when applicable; open-ended is fine when not.
+**One question at a time.** Never batch independent questions across topics. Within a single question, presenting multiple-choice options (recommended answer first) is fine — that's still one question. Open-ended is fine when MCQs would be forced. If a topic needs more exploration, break it into sequential single questions.
 
 **Every question carries your recommended answer.** Do not ask "what should we use for X?" — ask "I'd use X because of Y; agree, or push back?" The user reviews your draft instead of authoring from scratch. This is the single highest-leverage idea from Pocock.
 
@@ -47,7 +47,7 @@ Step 12: Handoff to superpowers:writing-plans
 Before asking anything, do this:
 
 - Read the user's request literally. If the scope describes multiple independent subsystems ("build a platform with chat, billing, analytics, ML serving"), flag this immediately — do not refine details of a project that needs decomposition first. Offer to decompose into sub-projects; brainstorm only the first one through the rest of this flow.
-- Pull project context: recent commits (`git log --oneline -20`), any `CLAUDE.md` and project memory (`MEMORY.md`), top-level `README.md`, and the active specs directory (commonly `docs/superpowers/specs/` or `docs/specs/`).
+- Pull project context (skip whatever isn't present): if it's a git repo, recent commits (`git log --oneline -20`); any `CLAUDE.md` and project memory (`MEMORY.md`); top-level `README.md`; the active specs directory (commonly `docs/superpowers/specs/` or `docs/specs/`). On a true greenfield without a repo, ask the user one orienting question instead.
 - Identify the existing spec depth standard. If the project anchors on a specific spec as the reference (e.g. trading-platform-v2's "Spec 7a depth standard"), respect that depth. Don't bring brainstorming-skill brevity into a project that runs 80K-line specs; don't bring spec-7a verbosity into a hobby project.
 - Identify the existing spec file location and naming convention (e.g. `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`). Adopt it. Don't invent a new location.
 
@@ -97,9 +97,9 @@ Best (recommended answer + sub-decisions surfaced):
 
 **Stop condition.** The grill ends when shared understanding is reached, not when documentation is complete. Pocock's median is 40-100 questions per session; 16-50 is also common. If you find yourself proposing 20 sub-questions about a topic that the user clearly doesn't care about at this depth, you've over-grilled — stop and ship the spec.
 
-### Step 5: Token-budget check at ~120K
+### Step 5: Token-budget check (~120K, or ~40 turns)
 
-At roughly 120K tokens of conversation context (you can estimate by line count if the harness doesn't expose token counts), pause and assess:
+At roughly 120K tokens of conversation context — or, if the harness doesn't expose token counts, around 40 user/assistant turns (which aligns with Pocock's observed median session length) — pause and assess:
 
 - Are we still adding signal, or going in circles?
 - Are the major decisions made?
@@ -107,7 +107,7 @@ At roughly 120K tokens of conversation context (you can estimate by line count i
 
 If the major decisions are made and we're refining surface detail, **stop grilling and ship the spec now** (skip to Step 6-8). If there's substantial unresolved design space and the context is full, **handover to a fresh chat** via the `handover` skill — the next chat picks up from the glossary + ADRs + partial-spec state.
 
-The cardinal sin per Pocock #6: *"Do not clear the context and start fresh just to write a PRD."* If you're going to compact context, **write the spec first**, then handover. The spec is the durable artefact; the chat transcript is not.
+The cardinal sin: *do not clear the context and start fresh just to write a spec.* If you're going to compact context, **write the spec first**, then handover. The spec is the durable artefact; the chat transcript is not.
 
 ### Step 6: Propose 2-3 approaches with trade-offs
 
@@ -125,7 +125,7 @@ Output: a single Markdown file at `docs/superpowers/specs/YYYY-MM-DD-<topic>-des
 
 Match the project's existing spec depth and structure. If the project anchors on a reference spec (e.g. "Spec 7a depth standard"), follow it: top-level §0 background, numbered sections, Honest Caveats section at the end, cross-references to upstream specs.
 
-Commit the spec to git with a short, descriptive message — but **do not push** unless the user explicitly asks. Commit is enough.
+Offer to commit the spec to git with a short, descriptive message — don't commit without the user's go-ahead, and **never push** unless they explicitly ask.
 
 ### Step 9: Spec self-review
 
@@ -238,8 +238,8 @@ Per Pocock: this is the single biggest preventive measure against agent-drift ac
 | Treating the glossary as a scratch pad | Bloated glossary stops being load-bearing. Strip decisions and implementation details when they sneak in. |
 | Writing ADRs for every decision | ADRs are scarce by design — apply the 3-criteria gate strictly. If everything is an ADR, nothing is. |
 | Grinding on a `[needs-prototype]` question | If a question genuinely needs a smoke implementation, mark it and move on. Don't burn a session on a question that won't yield until code exists. |
-| Writing the spec after compacting context | Spec quality degrades with context loss. Always: spec first, compact second. Pocock's #6 cardinal sin. |
-| Endless grilling without ever spec-ing | Over-grilling. Pocock's #5: *"If you're just planning and planning without building, you're over-grilling."* Once the major decisions are made, ship the spec. |
+| Writing the spec after compacting context | Spec quality degrades with context loss. Always: spec first, compact second. |
+| Endless grilling without ever spec-ing | *"If you're just planning and planning without building, you're over-grilling"* (Pocock). Once the major decisions are made, ship the spec. |
 | Outputting a chat-transcript summary instead of a spec doc | The chat is throwaway; the spec is durable. The user can't grep a chat. Write to the file. |
 | Handing off to `to-prd` instead of `writing-plans` | Different output formats, different downstream consumers. This skill's terminus is `writing-plans`. |
 
