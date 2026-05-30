@@ -142,7 +142,9 @@ Stash the PR number for Steps 5–8.
 
 For each open PR (newly created from Step 4, or pre-existing from State B/C):
 
-**Primary reviewer:** `coderabbit:code-reviewer`. **Fallback:** `feature-dev:code-reviewer` if coderabbit is unavailable in this session. Run one primary reviewer per PR — adding `superpowers:code-reviewer` on top would produce competing verdicts without adding rigor.
+**Primary reviewer:** `coderabbit:code-reviewer` (runs the CodeRabbit CLI — a separate inference process *plus* deterministic static analysis, so it is genuinely **independent** of a Claude coding agent that authored the code). **Fallback:** `feature-dev:code-reviewer` if coderabbit is unavailable — but treat this as a **degraded gate, not an equivalent**: it is a *same-model* reviewer (a Claude subagent reviewing Claude-authored code), so it produces correlated findings and cannot catch failure modes that Claude-class models systematically miss. It is a filter, not an independent gate. When the fallback is the only reviewer, lean on the repo's deterministic CI checks (Semgrep / secret-scan / language linters) as the zero-egress independent backstop, and weight the human merge decision accordingly.
+
+Run **one** primary reviewer per PR — stacking same-model reviewers adds no rigor (correlated verdicts, not independent ones). Independence requires a different inference stack or deterministic tools, not a second same-model pass.
 
 Dispatch with:
 
