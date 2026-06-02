@@ -45,12 +45,12 @@ In all other cases, emit the handover and stop. If you're unsure, emit the hando
 
 ### 2a: Decompose and dispatch
 
-**Default: every task is delegated to a subagent. Inline execution is the exception and must be named.** Run each task through this gate — "can this go to a subagent?" The answer is yes unless it hits one of these exceptions:
+**Default: every task is delegated to a subagent. Inline execution is the exception and must be named.** (This gate applies in subagent-driven mode. If the user chose **Manual** mode in Step 0, it does not apply — you drive inline as agreed.) Run each task through this gate — "can this go to a subagent?" The answer is yes unless it hits one of these exceptions:
 
 - **Overall / integration validation** — your own job as orchestrator (Step 2c). Never delegate it.
 - **Live user decision or interaction** — can't be packaged into a self-contained subagent prompt; keep it with you.
 - **Pure coordination** — merging subagent results, deciding task sequencing. Inherently the orchestrator's.
-- **Sub-trivial tasks** — individually too small to justify a subagent's spin-up cost. Do not run them inline one-by-one; **batch them into a single subagent.** Fall back to inline only if even one batched subagent isn't worth it — and say so.
+- **Sub-trivial tasks** — individually too small to justify a subagent's spin-up cost. Do not run them inline one-by-one; **batch them into a single subagent** (batch only tasks at the same dependency position, so a batch never straddles a sequential boundary). Fall back to inline only if even one batched subagent isn't worth it — and say so.
 
 If you keep any task inline, state in one line which exception applies and why, before proceeding. "It's quick" / "it's just one file" is not an exception — that's the rationalisation this gate exists to stop. The goal is a clean orchestrator context across the whole phase, not minimising any single task's token cost: a subagent re-reads the plan and guardrails, so per-task it often costs *more* — the win is that your context never accumulates that detail and stays cheap for the full phase.
 
