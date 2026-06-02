@@ -93,18 +93,18 @@ Use the template below verbatim. **Emit it as a single fenced code block** (trip
 
 Fill every section. For mid-phase handovers, the "Current status" lists what's done vs. outstanding and the next chat's job is to finish the phase, not start the next. For end-of-phase, the next chat starts Phase N+1.
 
-**Choose the recommended orchestrator model** and fill it into all three spots at the top of the template — the H1 title suffix, the ⚠️ callout line, and the "Before you start" check — so the user spots it on paste *and* the agent self-checks. The orchestrator decomposes tasks, coordinates subagents, and runs integration validation, so it needs real reasoning capacity: default to `sonnet`; recommend `opus` when the phase carries significant integration complexity, cross-cutting refactors, or architectural decisions where the orchestrator's own judgment is load-bearing. Never recommend `haiku` for the orchestrator. (This is separate from per-task subagent models — those are sized per task in the execution model.)
+**Choose the recommended orchestrator model** (`sonnet` or `opus`) and replace *every* `<recommended orchestrator model>` placeholder in the template's header block with it — the H1 title suffix, the ⚠️ callout, and the three occurrences in the "Before you start" check. Don't leave any unfilled: a raw placeholder in the self-check tells the receiving agent to compare itself against the literal string, which breaks the check. **Leave `<your current model>` verbatim** — that's the one placeholder the receiving agent fills at runtime from its own environment, not you. The orchestrator decomposes tasks, coordinates subagents, and runs integration validation, so it needs real reasoning capacity: default to `sonnet`; recommend `opus` when the phase carries significant integration complexity, cross-cutting refactors, or architectural decisions where the orchestrator's own judgment is load-bearing. Never recommend `haiku` for the orchestrator. (This is separate from per-task subagent models — those are sized per task in the execution model.)
 
 ### Handover prompt template
 
 ~~~markdown
-# Handover — <project name>, Phase <target-phase> (<"start" | "continue">) — orchestrate on `<recommended orchestrator model: sonnet | opus>`
+# Handover — <project name>, Phase <target-phase> (<"start" | "continue">) — orchestrate on `<recommended orchestrator model>`
 
 > **⚠️ Set your model to `<recommended orchestrator model>` before continuing.** If this chat is on a weaker model, switch with `/model` now.
 
 ## Before you start — orchestrator model check
 
-This phase is meant to be orchestrated on **`<recommended orchestrator model: sonnet | opus>`** (the orchestrator decomposes tasks, coordinates subagents, and runs integration validation — not a job for `haiku`).
+This phase is meant to be orchestrated on **`<recommended orchestrator model>`** (the orchestrator decomposes tasks, coordinates subagents, and runs integration validation — not a job for `haiku`).
 
 **As your very first action, before reading further or doing any work:** check the model you are running as (shown in your environment / system context). Capability order is `haiku` < `sonnet` < `opus`. If you are running on something *weaker* than `<recommended orchestrator model>`, **stop and ask the user**, then wait for their reply before continuing:
 
