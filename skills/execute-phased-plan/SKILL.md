@@ -45,9 +45,18 @@ In all other cases, emit the handover and stop. If you're unsure, emit the hando
 
 ### 2a: Decompose and dispatch
 
-1. **Decompose this phase into its tasks.** Look in the plan for an explicit task list for this phase. If the plan has one, use it verbatim. If it doesn't (the phase is described in prose, or the task list is vague), **draft a task list yourself from the phase's scope and deliverables, then stop and validate with the user** before dispatching any subagent — say something like: "The plan doesn't list explicit tasks for this phase, so I've drafted the following from the scope. Approve, or tell me what to refine." Once you have a list the user accepts, classify each task as independent (can run in parallel) or sequential (depends on another task's output).
+**Default: every task is delegated to a subagent. Inline execution is the exception and must be named.** (This gate applies in subagent-driven mode. If the user chose **Manual** mode in Step 0, it does not apply — you drive inline as agreed.) Run each task through this gate — "can this go to a subagent?" The answer is yes unless it hits one of these exceptions:
 
-2. **Dispatch subagents** — launch independent tasks in parallel; launch sequential tasks only after their dependencies report back. Each subagent prompt must be self-contained: include the plan file path, branch name, relevant guardrails from CLAUDE.md, and a clear definition of done for that task **including the task-level tests the subagent must run and pass before reporting back**.
+- **Overall / integration validation** — your own job as orchestrator (Step 2c). Never delegate it.
+- **Live user decision or interaction** — can't be packaged into a self-contained subagent prompt; keep it with you.
+- **Pure coordination** — merging subagent results, deciding task sequencing. Inherently the orchestrator's.
+- **Sub-trivial tasks** — individually too small to justify a subagent's spin-up cost. Do not run them inline one-by-one; **batch them into a single subagent** (batch only tasks at the same dependency position, so a batch never straddles a sequential boundary). Fall back to inline only if even one batched subagent isn't worth it — and say so.
+
+If you keep any task inline, state in one line which exception applies and why, before proceeding. "It's quick" / "it's just one file" is not an exception — that's the rationalisation this gate exists to stop. The goal is a clean orchestrator context across the whole phase, not minimising any single task's token cost: a subagent re-reads the plan and guardrails, so per-task it often costs *more* — the win is that your context never accumulates that detail and stays cheap for the full phase.
+
+1. **Decompose this phase into its tasks.** Look in the plan for an explicit task list for this phase. If the plan has one, use it verbatim. If it doesn't (the phase is described in prose, or the task list is vague), **draft a task list yourself from the phase's scope and deliverables, then stop and validate with the user** before dispatching any subagent — say something like: "The plan doesn't list explicit tasks for this phase, so I've drafted the following from the scope. Approve, or tell me what to refine." Once you have a list the user accepts, run each task through the delegation gate above, then classify each as independent (can run in parallel) or sequential (depends on another task's output).
+
+2. **Dispatch subagents** (one per task, or one per batch of sub-trivial tasks) — launch independent tasks in parallel; launch sequential tasks only after their dependencies report back. Each subagent prompt must be self-contained: include the plan file path, branch name, relevant guardrails from CLAUDE.md, and a clear definition of done for that task **including the task-level tests the subagent must run and pass before reporting back**.
 
 Each subagent should follow `superpowers:executing-plans` internally. Apply the usual dev-loop conventions from CLAUDE.md (conventional commits, branch off base, PR → base, CodeRabbit, CI green, squash-merge).
 
