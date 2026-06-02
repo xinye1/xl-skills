@@ -60,6 +60,8 @@ If you keep any task inline, state in one line which exception applies and why, 
 
 Each subagent should follow `superpowers:executing-plans` internally. Apply the usual dev-loop conventions from CLAUDE.md (conventional commits, branch off base, PR → base, CodeRabbit, CI green, squash-merge).
 
+**Pick each subagent's model and pass it explicitly when dispatching** — match the model to the task's difficulty (the Task/Agent tool accepts `haiku` / `sonnet` / `opus`): `haiku` for mechanical, fully-specified work (rote edits, boilerplate, formatting, running a known command and reporting); `sonnet` — the default for task subagents — for standard implementation against a clear spec; `opus` only for high-ambiguity or high-stakes tasks (design/architecture calls, gnarly debugging, security-sensitive code). Default to `sonnet`; escalate to `opus` only when ambiguity or blast radius justifies it, drop to `haiku` only when the task is genuinely mechanical. **A cheap wrong answer isn't cheap** — if a smaller model fails and you redo the work on a bigger one, you pay twice, so on a tier boundary pick the higher tier. Keep the orchestrator itself (you) on `sonnet` or `opus` — it runs overall validation (Step 2c) and is the one place not to economise. If newer Claude versions exist, map by tier (cheapest / balanced / most capable), not the literal alias.
+
 ### 2b: Receive reports and coordinate
 
 As subagents complete, collect their reports. Each report must include:
