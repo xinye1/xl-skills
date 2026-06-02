@@ -93,10 +93,24 @@ Use the template below verbatim. **Emit it as a single fenced code block** (trip
 
 Fill every section. For mid-phase handovers, the "Current status" lists what's done vs. outstanding and the next chat's job is to finish the phase, not start the next. For end-of-phase, the next chat starts Phase N+1.
 
+**Choose the recommended orchestrator model** and fill it into all three spots at the top of the template — the H1 title suffix, the ⚠️ callout line, and the "Before you start" check — so the user spots it on paste *and* the agent self-checks. The orchestrator decomposes tasks, coordinates subagents, and runs integration validation, so it needs real reasoning capacity: default to `sonnet`; recommend `opus` when the phase carries significant integration complexity, cross-cutting refactors, or architectural decisions where the orchestrator's own judgment is load-bearing. Never recommend `haiku` for the orchestrator. (This is separate from per-task subagent models — those are sized per task in the execution model.)
+
 ### Handover prompt template
 
 ~~~markdown
-# Handover — <project name>, Phase <target-phase> (<"start" | "continue">)
+# Handover — <project name>, Phase <target-phase> (<"start" | "continue">) — orchestrate on `<recommended orchestrator model: sonnet | opus>`
+
+> **⚠️ Set your model to `<recommended orchestrator model>` before continuing.** If this chat is on a weaker model, switch with `/model` now.
+
+## Before you start — orchestrator model check
+
+This phase is meant to be orchestrated on **`<recommended orchestrator model: sonnet | opus>`** (the orchestrator decomposes tasks, coordinates subagents, and runs integration validation — not a job for `haiku`).
+
+**As your very first action, before reading further or doing any work:** check the model you are running as (shown in your environment / system context). Capability order is `haiku` < `sonnet` < `opus`. If you are running on something *weaker* than `<recommended orchestrator model>`, **stop and ask the user**, then wait for their reply before continuing:
+
+> This handover recommends orchestrating on `<recommended orchestrator model>`, but this chat is running on `<your current model>`. Switch with `/model` (recommended), or reply "continue" to proceed on `<your current model>` anyway.
+
+Do not begin decomposition or dispatch until the user has switched or explicitly confirmed. (This is only about the orchestrating chat — task subagents are sized per task in the execution model below.)
 
 ## Current status (as of <YYYY-MM-DD HH:MM>)
 
@@ -152,6 +166,7 @@ Then orchestrate:
 
 1. **Decompose this phase into its tasks.** Look in the plan for an explicit task list for this phase. If the plan has one, use it verbatim. If it doesn't (the phase is described in prose, or the task list is vague), **draft a task list yourself from the phase's scope and deliverables, then stop and validate with the user** before dispatching any subagent — say something like: "The plan doesn't list explicit tasks for this phase, so I've drafted the following from the scope. Approve, or tell me what to refine." Once you have a list the user accepts, run each task through the delegation gate above, then classify each as independent (can run in parallel) or sequential (depends on another task's output).
 2. **Dispatch one subagent per task** (or one per batch of sub-trivial tasks). Launch independent tasks in parallel; launch sequential tasks only after their dependencies report back. Each subagent prompt must be self-contained: plan file path, branch name, guardrails below, and a clear definition of done that **includes the task-level tests the subagent must run and pass before reporting back**. Each subagent should follow `superpowers:executing-plans` internally.
+   - **Pick each subagent's model and pass it explicitly when dispatching** — match the model to the task's difficulty (the Task/Agent tool accepts `haiku` / `sonnet` / `opus`): `haiku` for mechanical, fully-specified work (rote edits, boilerplate, formatting, running a known command and reporting); `sonnet` — the default for task subagents — for standard implementation against a clear spec; `opus` only for high-ambiguity or high-stakes tasks (design/architecture calls, gnarly debugging, security-sensitive code). Default to `sonnet`; escalate to `opus` only when ambiguity or blast radius justifies it, drop to `haiku` only when the task is genuinely mechanical. **A cheap wrong answer isn't cheap** — if a smaller model fails and you redo the work on a bigger one, you pay twice, so on a tier boundary pick the higher tier. Keep the orchestrator itself on `sonnet` or `opus` — it runs overall validation (step 4) and is the one place not to economise. If newer Claude versions exist, map by tier (cheapest / balanced / most capable), not the literal alias.
 3. **Receive reports and coordinate.** Each subagent reports: what was implemented, which tests passed (`X/Y passing`, lint clean, etc.), any deviations with reasons, and carry-forward notes for dependent tasks. If a subagent's tests are red, it must fix and re-run before the report is accepted — "tests failing" is not a completed task. If a failure blocks a dependent task, stop and resolve before dispatching downstream subagents; do not cascade failures forward.
 4. **Run overall validation yourself** (do not delegate). Once all subagents have reported green task-level results, you — the orchestrating agent — run the full integration/validation suite: full tests, lint, type-check, and any E2E/integration tests the plan's exit criteria specify. Task-level tests confirm local correctness; overall validation confirms the pieces integrate. If overall validation is red, diagnose, fix, and re-run before moving on.
 
