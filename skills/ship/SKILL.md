@@ -1,6 +1,6 @@
 ---
 name: ship
-description: Ship code changes end-to-end — identify logical commits, branch, commit, run local tests, push, create PR, coordinate subagent code review, watch CI, merge, and clean up local branch + worktree. Use whenever the user says "ship it", "ship the code", "ship the changes", "ship these changes", "let's ship", or otherwise asks to push/PR/merge current work. Also use when resuming mid-journey: committed-but-not-pushed, PR open awaiting review, PR approved and ready to merge, or just needing local branch cleanup after a merge. The skill auto-detects which stage to start from. This is the merge-side counterpart to the superpowers dev-loop skills; prefer it over ad-hoc git/gh commands whenever shipping is in scope.
+description: Ship code changes end-to-end — identify logical commits, branch, commit, run local tests, coordinate subagent code review, push, create PR, watch CI, merge, and clean up local branch + worktree. Use whenever the user says "ship it", "ship the code", "ship the changes", "ship these changes", "let's ship", or otherwise asks to push/PR/merge current work. Also use when resuming mid-journey: committed-but-not-pushed, PR open awaiting review, PR approved and ready to merge, or just needing local branch cleanup after a merge. The skill auto-detects which stage to start from. This is the merge-side counterpart to the superpowers dev-loop skills; prefer it over ad-hoc git/gh commands whenever shipping is in scope.
 ---
 
 # Ship — end-to-end code shipping
@@ -33,12 +33,12 @@ Classify and announce the detected state in one line (e.g. "Resuming at merge fo
 |---|---|---|
 | **A. Uncommitted changes** | dirty tree (`git status --porcelain` non-empty), no open PR for current branch | Step 1 |
 | **A2. Committed, not pushed** | clean tree on a feature branch with no open PR AND ((commits-ahead-of-upstream > 0) OR (`no-upstream` AND commits-beyond-base > 0)) | Step 4 |
-| **A3. Iteration on existing PR** | dirty tree OR commits-ahead-of-upstream > 0, on a branch whose own PR is currently open | Commit any dirty work (Step 2 logic — reuse the existing branch) and/or push (Step 4 push only — PR already exists), then re-evaluate as B / B2 / B3 / B4 |
-| **B. PR open, awaiting review** | clean tree, in sync with remote, open PR, `reviewDecision` is `null` or `REVIEW_REQUIRED` | Step 5 |
-| **B2. PR open, changes requested** | clean + in sync, open PR with `reviewDecision: CHANGES_REQUESTED` | Step 5 — fix issues first, then re-review |
+| **A3. Iteration on existing PR** | dirty tree OR commits-ahead-of-upstream > 0, on a branch whose own PR is currently open | Commit any dirty work (Step 2 logic — reuse the existing branch) and/or push (Step 5 push only — PR already exists), then re-evaluate as B / B2 / B3 / B4 |
+| **B. PR open, awaiting review** | clean tree, in sync with remote, open PR, `reviewDecision` is `null` or `REVIEW_REQUIRED` | Step 4 |
+| **B2. PR open, changes requested** | clean + in sync, open PR with `reviewDecision: CHANGES_REQUESTED` | Step 4 — fix issues first, then re-review |
 | **B3. PR approved, CI not green** | clean + in sync, open PR with `reviewDecision: APPROVED`, at least one check pending or failing | Step 6 |
 | **B4. PR approved + CI green** | clean + in sync, open PR with `reviewDecision: APPROVED`, all checks passed (or `statusCheckRollup` empty — repo has no CI configured, treat as green) | Step 7 — skip straight to merge |
-| **C. Mixed** | dirty tree, current branch has no open PR, but other branches do | Handle dirty tree through Steps 1–4, then loop open PRs from Step 5 at their own detected sub-state |
+| **C. Mixed** | dirty tree, current branch has no open PR, but other branches do | Handle dirty tree through Steps 1–5, then loop open PRs from Step 4 at their own detected sub-state |
 | **D. Post-merge cleanup** | `gh pr list --state merged` returns a PR whose `headRefName` still exists as a local branch | Step 8. If the user is currently *on* that branch and the tree is dirty, stop and flag — the work belongs on a fresh branch off base, not on a stale-merged one |
 | **E. Nothing to do** | none of the above match (e.g. clean tree on base branch, no open PRs, no surviving post-merge branches) | Report "nothing to ship" and stop — no git operations |
 
@@ -118,7 +118,43 @@ If no test command can be auto-detected, state that explicitly before pushing:
 
 Silent skipping is worse than no verification, because it lets future-you assume the tests ran.
 
-## Step 4: Push + create PR
+## Step 4: Independent code review
+
+**The review runs against different sources depending on how you arrived — and the *timing* is the whole point:**
+
+- **Fresh work (States A, A2 — no PR exists yet):** review the **local diff *before* the first push**, fold any fixes into the commit(s), and only then push (Step 5). Why: reviewing pre-push means a review-driven fix is folded into the commit *before* CI ever sees the branch, so CI runs **once**, on already-reviewed code. Reviewing post-push instead burns a redundant CI run every time a review finding triggers a fix — the first run validated code that was about to change anyway. On a budget-tuned / free-tier CI this is pure waste.
+- **Resuming an open PR (States B, B2, and A3 after it re-evaluates):** review the pushed PR diff (`gh pr diff <pr>`) as before — the first push already happened, so there's nothing left to save by deferring. Fix → commit → push → re-review, then go to CI (Step 6).
+
+**Primary reviewer:** `coderabbit:code-reviewer` (runs the CodeRabbit CLI — a separate inference process *plus* deterministic static analysis, so it is genuinely **independent** of a Claude coding agent that authored the code). The CLI reviews **local** changes directly — it does *not* need a PR or a push: `coderabbit review --base origin/<base>` compares the branch against base, and `--type committed|uncommitted|all` scopes which changes it sees. That's what makes the pre-push review above possible. **Fallback:** `feature-dev:code-reviewer` if coderabbit is unavailable — but treat this as a **degraded gate, not an equivalent**: it is a *same-model* reviewer (a Claude subagent reviewing Claude-authored code), so it produces correlated findings and cannot catch failure modes that Claude-class models systematically miss. It is a filter, not an independent gate. When the fallback is the only reviewer, lean on the repo's deterministic CI checks (Semgrep / secret-scan / language linters) as the zero-egress independent backstop, and weight the human merge decision accordingly.
+
+Run **one** primary reviewer per PR (or per pre-push change set) — stacking same-model reviewers adds no rigor (correlated verdicts, not independent ones). Independence requires a different inference stack or deterministic tools, not a second same-model pass.
+
+**Source of truth for what's under review:**
+
+- **Pre-push (fresh work):** the local diff. For committed-but-unpushed work, `git diff origin/<base>...HEAD`; for still-uncommitted work, the working tree. The reviewer reads the local repo directly — no PR exists yet, so there is no `gh pr diff` to point at.
+- **Resuming a PR:** `gh pr diff <pr>` — the definitive source for what's actually on the PR branch (*not* the working tree).
+
+Dispatch with:
+
+- the diff source above (and the PR number, when resuming a PR)
+- a structured verdict: `APPROVE` or `REQUEST_CHANGES` + issue list
+- **when resuming a PR:** also instruct the reviewer to leave inline comments via `gh pr review --comment` (there is no PR to comment on pre-push)
+
+**Consuming the reviewer's output — apply `superpowers:receiving-code-review`:**
+
+1. **Verify each reviewer claim against the diff under review before acting** — the local diff (`git diff origin/<base>...HEAD`) pre-push, or `gh pr diff <pr>` when resuming a PR. Subagent reviewers sometimes read the wrong tree, producing false alarms about code that isn't actually in scope. Cross-check every non-trivial comment against the actual diff.
+2. **Push back with technical reasoning when a comment is wrong.** Don't implement feedback just to seem cooperative.
+3. **No performative agreement.** Never write "you're absolutely right", "great catch", "thanks for catching that", or similar. Just fix it, or just push back — the code change itself is the acknowledgment.
+4. **One issue at a time, test each fix.** Clarify unclear items before implementing anything.
+
+**If the reviewer found real issues:**
+
+- **Pre-push (fresh work):** fix → fold into the commit(s) (amend the relevant commit, or add a local fixup commit — either is fine; it stays local, so CI still runs only once at push) → re-review the local diff → loop. When `APPROVE`, proceed to Step 5 (push + create PR).
+- **Resuming a PR:** fix → commit → push to the same branch → re-dispatch review on the updated `gh pr diff <pr>` → loop. When `APPROVE`, proceed to Step 6 (CI).
+
+## Step 5: Push + create PR
+
+For fresh work this runs *after* the Step 4 review has approved the local diff, so this first push lands already-reviewed code and is the only CI trigger. (Resumed PRs from States B/B2/A3 already pushed — they reach CI via Step 6, not here.)
 
 ```bash
 git push -u origin <branch>
@@ -136,30 +172,7 @@ EOF
 
 If the repo has `.github/pull_request_template.md`, gh applies it automatically — keep the body aligned with its section headers rather than overriding.
 
-Stash the PR number for Steps 5–8.
-
-## Step 5: Subagent code review
-
-For each open PR (newly created from Step 4, or pre-existing from State B/C):
-
-**Primary reviewer:** `coderabbit:code-reviewer` (runs the CodeRabbit CLI — a separate inference process *plus* deterministic static analysis, so it is genuinely **independent** of a Claude coding agent that authored the code). **Fallback:** `feature-dev:code-reviewer` if coderabbit is unavailable — but treat this as a **degraded gate, not an equivalent**: it is a *same-model* reviewer (a Claude subagent reviewing Claude-authored code), so it produces correlated findings and cannot catch failure modes that Claude-class models systematically miss. It is a filter, not an independent gate. When the fallback is the only reviewer, lean on the repo's deterministic CI checks (Semgrep / secret-scan / language linters) as the zero-egress independent backstop, and weight the human merge decision accordingly.
-
-Run **one** primary reviewer per PR — stacking same-model reviewers adds no rigor (correlated verdicts, not independent ones). Independence requires a different inference stack or deterministic tools, not a second same-model pass.
-
-Dispatch with:
-
-- PR number
-- `gh pr diff <pr>` as the definitive source of truth for what's under review (*not* the working tree — see below)
-- Instructions to leave inline comments via `gh pr review --comment` and return a structured verdict: `APPROVE` or `REQUEST_CHANGES` + issue list
-
-**Consuming the reviewer's output — apply `superpowers:receiving-code-review`:**
-
-1. **Verify each reviewer claim against `gh pr diff <pr>` before acting.** Subagent reviewers sometimes read the working tree instead of the PR branch, producing false alarms about code that isn't actually in the PR. Cross-check every non-trivial comment against the actual diff.
-2. **Push back with technical reasoning when a comment is wrong.** Don't implement feedback just to seem cooperative.
-3. **No performative agreement.** Never write "you're absolutely right", "great catch", "thanks for catching that", or similar. Just fix it, or just push back — the code change itself is the acknowledgment.
-4. **One issue at a time, test each fix.** Clarify unclear items before implementing anything.
-
-If the reviewer found real issues: fix → commit → push to the same branch → re-dispatch review → loop. If `APPROVE`, proceed to Step 6.
+Stash the PR number for Steps 6–8.
 
 ## Step 6: Wait for CI
 
@@ -174,22 +187,22 @@ On failure: inspect logs (`gh run view --log-failed` for the failing run), fix t
 When the subagent verdict is `APPROVE` **and** all CI checks are green:
 
 ```bash
-gh pr merge <pr> --squash --delete-branch
+gh pr merge <pr> --merge --delete-branch
 ```
 
 The `--delete-branch` flag removes the remote branch. Step 8 removes the local branch and any worktree.
 
 ## Step 8: Local cleanup
 
-This mirrors `superpowers:finishing-a-development-branch` Option 1 (local merge + cleanup), except the "merge" already happened on GitHub via squash-merge. The cleanup itself is the same:
+This mirrors `superpowers:finishing-a-development-branch` Option 1 (local merge + cleanup), except the merge already happened on GitHub via a regular merge commit. The cleanup itself is the same:
 
 ```bash
 git checkout <base>
-git pull origin <base>           # picks up the squashed commit
+git pull origin <base>           # picks up the merge commit
 git branch -d <merged-branch>    # safe delete
 ```
 
-Use `-d`, not `-D`. If safe-delete refuses ("branch not fully merged"), that means `git pull` didn't pick up the squash commit — don't force. Investigate: check `gh pr view <pr> --json mergeCommit`, verify you're on the right base, verify the remote branch really got deleted. A stuck safe-delete usually indicates a real problem, not friction to bypass.
+Use `-d`, not `-D`. If safe-delete refuses ("branch not fully merged"), that means `git pull` didn't pick up the merge commit — don't force. Investigate: check `gh pr view <pr> --json mergeCommit`, verify you're on the right base, verify the remote branch really got deleted. A stuck safe-delete usually indicates a real problem, not friction to bypass.
 
 **Worktree cleanup.** If the work happened in a worktree (detected in Step 2):
 
@@ -205,7 +218,7 @@ Report a one-table summary of everything shipped this invocation:
 
 | Branch | PR | CI | Review | Merge | Local cleanup |
 |---|---|---|---|---|---|
-| fix/foo | #42 | ✓ | APPROVE | squashed | branch+worktree removed |
+| fix/foo | #42 | ✓ | APPROVE | merged | branch+worktree removed |
 
 ## Rules
 
@@ -221,8 +234,8 @@ Report a one-table summary of everything shipped this invocation:
 |---|---|
 | `using-git-worktrees` | Step 2 detects and reuses the worktree's branch; Step 8 removes the worktree after merge. |
 | `finishing-a-development-branch` | Steps 7 + 8 inline that skill's Option 1 cleanup. State A covers the "push + create PR" path (Option 2). State B is the explicit resume-point when that skill has already completed Option 2 and handed off. |
-| `requesting-code-review` | Step 5 owns review dispatch for PRs. Uses `coderabbit:code-reviewer`, not `superpowers:code-reviewer` — single primary reviewer per PR. |
-| `receiving-code-review` | Applied in Step 5 when consuming the reviewer's verdict: verify before implementing, push back with reasoning, no performative language. |
+| `requesting-code-review` | Step 4 owns review dispatch — pre-push on the local diff for fresh work (so CI runs once), post-push on `gh pr diff` when resuming an open PR. Uses `coderabbit:code-reviewer`, not `superpowers:code-reviewer` — single primary reviewer per change set. |
+| `receiving-code-review` | Applied in Step 4 when consuming the reviewer's verdict: verify before implementing, push back with reasoning, no performative language. |
 | `verification-before-completion` | Step 3 (local tests + lint before push), Step 6 (CI green before merge), Step 8 (safe-delete refusal treated as a real signal, not friction). |
 
 These skills are complementary, not redundant: superpowers covers the local dev loop and the "implementation complete, what next" decision point; ship covers everything downstream of that — the remote PR lifecycle and the loop-closing local cleanup.
