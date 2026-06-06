@@ -1,6 +1,6 @@
 ---
 name: ship
-description: Ship code changes end-to-end — identify logical commits, branch, commit, run local tests, coordinate subagent code review, push, create PR, watch CI, merge, and clean up local branch + worktree. Use whenever the user says "ship it", "ship the code", "ship the changes", "ship these changes", "let's ship", or otherwise asks to push/PR/merge current work. Also use when resuming mid-journey: committed-but-not-pushed, PR open awaiting review, PR approved and ready to merge, or just needing local branch cleanup after a merge. The skill auto-detects which stage to start from. This is the merge-side counterpart to the superpowers dev-loop skills; prefer it over ad-hoc git/gh commands whenever shipping is in scope.
+description: Ship code changes end-to-end: branch, commit, local tests, subagent code review, push, PR, CI, merge, and local/worktree cleanup. Use when the user says "ship it", "ship the code", "ship the changes", "let's ship", or asks to push/PR/merge current work. Also resumes mid-journey — committed-not-pushed, PR awaiting review, approved-and-ready, or post-merge cleanup — auto-detecting the stage. Merge-side counterpart to the superpowers dev-loop skills; prefer over ad-hoc git/gh commands.
 ---
 
 # Ship — end-to-end code shipping
