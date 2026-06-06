@@ -56,6 +56,7 @@ Classify and announce the detected state in one line (e.g. "Resuming at merge fo
 
 - **Detached HEAD** (`git branch --show-current` empty): `rev-list @{upstream}..HEAD` will fall through to `no-upstream`, which would otherwise misclassify as A2. Treat detached HEAD as E and flag — the user should check out a branch first.
 - **Empty `statusCheckRollup`** for B4: a repo with no CI configured returns an empty array; treat empty-checks as green (the equivalent of "nothing to fail"). If the repo *should* have CI but the array is empty, that's a config bug — flag rather than merging blind.
+- **Draft PRs + pre-merge-gated CI:** an open *draft* hasn't run the gated CI yet, so empty `statusCheckRollup` on a draft is **not** B4-green — never merge it blind. A null-review draft classifies as **B** and resumes correctly at review → gate (Steps 4 → 6). CI coupling itself (push-triggered vs pre-merge-gated) is determined in Step 4 and decides whether review runs before or after the push.
 
 Why this matters: superpowers' `finishing-a-development-branch` (Option 2) ends after `gh pr create` — its job is done. Ship takes over from there. The granular detection is what lets the two flows compose without friction and lets the user invoke ship at any point in the journey.
 
@@ -120,45 +121,51 @@ Silent skipping is worse than no verification, because it lets future-you assume
 
 ## Step 4: Independent code review
 
-**The review runs against different sources depending on how you arrived — and the *timing* is the whole point:**
+Review is **mandatory before every merge** — ship never merges code that hasn't been independently reviewed. What changes is only *when* review runs relative to the push, and that's set by one repo fact: **does CI run on push, or only at a merge gate?** Determine it once, from the workflow triggers:
 
-- **Fresh work (States A, A2 — no PR exists yet):** review the **local diff *before* the first push**, fold any fixes into the commit(s), and only then push (Step 5). Why: reviewing pre-push means a review-driven fix is folded into the commit *before* CI ever sees the branch, so CI runs **once**, on already-reviewed code. Reviewing post-push instead burns a redundant CI run every time a review finding triggers a fix — the first run validated code that was about to change anyway. On a budget-tuned / free-tier CI this is pure waste.
-- **Resuming an open PR (States B, B2, and A3 after it re-evaluates):** review the pushed PR diff (`gh pr diff <pr>`) as before — the first push already happened, so there's nothing left to save by deferring. Fix → commit → push → re-review, then go to CI (Step 6).
+```bash
+grep -REn 'on:|push:|pull_request:|types:|synchronize|ready_for_review|merge_group|workflow_dispatch' .github/workflows/ 2>/dev/null || echo "no workflows — no CI"
+```
 
-**Primary reviewer:** `coderabbit:code-reviewer` (runs the CodeRabbit CLI — a separate inference process *plus* deterministic static analysis, so it is genuinely **independent** of a Claude coding agent that authored the code). The CLI reviews **local** changes directly — it does *not* need a PR or a push: `coderabbit review --base origin/<base>` compares the branch against base, and `--type committed|uncommitted|all` scopes which changes it sees. That's what makes the pre-push review above possible. **Fallback:** `feature-dev:code-reviewer` if coderabbit is unavailable — but treat this as a **degraded gate, not an equivalent**: it is a *same-model* reviewer (a Claude subagent reviewing Claude-authored code), so it produces correlated findings and cannot catch failure modes that Claude-class models systematically miss. It is a filter, not an independent gate. When the fallback is the only reviewer, lean on the repo's deterministic CI checks (Semgrep / secret-scan / language linters) as the zero-egress independent backstop, and weight the human merge decision accordingly.
+| CI coupling | Signal in `.github/workflows` | Push cost | Review timing |
+|---|---|---|---|
+| **Push-coupled** | fires on `push:` to the base branch, or `pull_request` whose `types` include `synchronize` (the default when `types` is omitted) | every push = 1 CI run | **pre-push** |
+| **Pre-merge-gated** | `pull_request` `types` limited to `ready_for_review`, and/or `merge_group`, and/or `workflow_dispatch` — **no** `push`/`synchronize` | free | **post-push** |
+| **No CI** | no workflows (`statusCheckRollup` empty in Step 0) | free | post-push (simplest) |
 
-Run **one** primary reviewer per PR (or per pre-push change set) — stacking same-model reviewers adds no rigor (correlated verdicts, not independent ones). Independence requires a different inference stack or deterministic tools, not a second same-model pass.
+**The invariant, all three:** a review-driven fix must never trigger a CI run that the first push already paid for.
 
-**Source of truth for what's under review:**
+- **Pre-merge-gated / no CI → review post-push (the default, simplest path).** Push is free, so push first — Step 5 opens the PR **as a draft** when CI is gated — then review the PR diff (`gh pr diff <pr>`), fold fixes with more free pushes, loop to `APPROVE`. Only then open the merge gate (Step 6): that one action is the single CI run, on already-reviewed code. Interruptions and resumes are harmless here — a resumed review just costs free pushes, never a wasted run.
+- **Push-coupled → review pre-push.** Each push costs a run, so review the **local diff before the first push** (`git diff origin/<base>...HEAD`, or the working tree for uncommitted work — the CodeRabbit CLI reads the local repo directly via `coderabbit review --base origin/<base> --type committed|uncommitted|all`, no PR needed), fold fixes into the commit(s), then push once (Step 5). This is the best a push-coupled repo allows, and it is fragile: resuming an already-pushed PR (States B/B2) forces a post-push review, and a fix then costs a second run. **If that recurs, convert the repo to pre-merge-gated CI** — drop `push`/`synchronize` so CI fires only at the gate. Fix the coupling at the source instead of choreographing around it.
 
-- **Pre-push (fresh work):** the local diff. For committed-but-unpushed work, `git diff origin/<base>...HEAD`; for still-uncommitted work, the working tree. The reviewer reads the local repo directly — no PR exists yet, so there is no `gh pr diff` to point at.
-- **Resuming a PR:** `gh pr diff <pr>` — the definitive source for what's actually on the PR branch (*not* the working tree).
+**Order of Steps 4–6 by coupling:** push-coupled = **4 → 5 → 6** (review, then push, then CI); gated / no-CI = **5 → 4 → 6** (draft-push, then review, then open the gate + CI).
 
-Dispatch with:
+**Primary reviewer:** `coderabbit:code-reviewer` (runs the CodeRabbit CLI — a separate inference process *plus* deterministic static analysis, so it is genuinely **independent** of a Claude coding agent that authored the code). The CLI reviews **local** changes directly — no PR or push needed — which is what lets the push-coupled path review pre-push. **Fallback:** `feature-dev:code-reviewer` if coderabbit is unavailable — but treat this as a **degraded gate, not an equivalent**: it is a *same-model* reviewer (a Claude subagent reviewing Claude-authored code), so it produces correlated findings and cannot catch failure modes that Claude-class models systematically miss. When the fallback is the only reviewer, lean on the repo's deterministic checks (Semgrep / secret-scan / linters) as the independent backstop and weight the human merge decision accordingly.
 
-- the diff source above (and the PR number, when resuming a PR)
-- a structured verdict: `APPROVE` or `REQUEST_CHANGES` + issue list
-- **when resuming a PR:** also instruct the reviewer to leave inline comments via `gh pr review --comment` (there is no PR to comment on pre-push)
+Run **one** primary reviewer per change set — stacking same-model reviewers adds no rigor (correlated verdicts, not independent ones). Independence requires a different inference stack or deterministic tools, not a second same-model pass.
+
+Dispatch with the **diff under review** (the local diff pre-push, or `gh pr diff <pr>` once a PR exists — *not* the working tree once pushed; pass the PR number when it exists) and require a structured verdict: `APPROVE` or `REQUEST_CHANGES` + issue list. When a PR exists, also have the reviewer leave inline comments via `gh pr review --comment`.
 
 **Consuming the reviewer's output — apply `superpowers:receiving-code-review`:**
 
-1. **Verify each reviewer claim against the diff under review before acting** — the local diff (`git diff origin/<base>...HEAD`) pre-push, or `gh pr diff <pr>` when resuming a PR. Subagent reviewers sometimes read the wrong tree, producing false alarms about code that isn't actually in scope. Cross-check every non-trivial comment against the actual diff.
+1. **Verify each reviewer claim against the diff under review before acting** — the local diff (`git diff origin/<base>...HEAD`) pre-push, or `gh pr diff <pr>` once pushed. Subagent reviewers sometimes read the wrong tree, producing false alarms about code that isn't actually in scope. Cross-check every non-trivial comment against the actual diff.
 2. **Push back with technical reasoning when a comment is wrong.** Don't implement feedback just to seem cooperative.
 3. **No performative agreement.** Never write "you're absolutely right", "great catch", "thanks for catching that", or similar. Just fix it, or just push back — the code change itself is the acknowledgment.
 4. **One issue at a time, test each fix.** Clarify unclear items before implementing anything.
 
-**If the reviewer found real issues:**
-
-- **Pre-push (fresh work):** fix → fold into the commit(s) (amend the relevant commit, or add a local fixup commit — either is fine; it stays local, so CI still runs only once at push) → re-review the local diff → loop. When `APPROVE`, proceed to Step 5 (push + create PR).
-- **Resuming a PR:** fix → commit → push to the same branch → re-dispatch review on the updated `gh pr diff <pr>` → loop. When `APPROVE`, proceed to Step 6 (CI).
+**On real findings:** fix → fold in (gated / no-CI: push to the branch — free; push-coupled: amend or add a fixup commit, stays local) → re-review the updated diff → loop. On `APPROVE`, continue — gated / no-CI: Step 6 (open the gate); push-coupled: Step 5 (push) if not yet pushed, else Step 6.
 
 ## Step 5: Push + create PR
 
-For fresh work this runs *after* the Step 4 review has approved the local diff, so this first push lands already-reviewed code and is the only CI trigger. (Resumed PRs from States B/B2/A3 already pushed — they reach CI via Step 6, not here.)
+When this runs, and whether the PR is a draft, follows the CI coupling from Step 4:
+
+- **Pre-merge-gated CI:** push *before* review and open the PR **as a draft** (`gh pr create --draft`) — the draft push does not open the merge gate, so no CI fires yet. You'll review post-push (Step 4) then flip it ready in Step 6.
+- **Push-coupled CI:** review already happened pre-push (Step 4), so create the PR normally — this first push is the only CI trigger as long as you don't iterate post-push.
+- **No CI:** create normally; nothing is triggered either way.
 
 ```bash
 git push -u origin <branch>
-gh pr create --base <base> --title "..." --body "$(cat <<'EOF'
+gh pr create [--draft] --base <base> --title "..." --body "$(cat <<'EOF'
 ## Summary
 - <bullet of the main change>
 - <bullet of secondary change if any>
@@ -174,13 +181,23 @@ If the repo has `.github/pull_request_template.md`, gh applies it automatically 
 
 Stash the PR number for Steps 6–8.
 
-## Step 6: Wait for CI
+## Step 6: Open the merge gate + wait for CI
+
+How CI gets triggered depends on the coupling from Step 4:
+
+- **Push-coupled:** the Step 5 push already triggered CI — just watch it.
+- **Pre-merge-gated:** the gate is what fires the single run. **Invariant for *when* to open it:** only after local tests (Step 3) and review (Step 4) pass *and* you intend to merge — never before review (that wastes the run). The exact moment is a judgement call, not a fixed ritual. Mechanism options:
+  - `gh pr ready <pr>` (draft → ready) — cheapest, keeps the PR's path-filter, but *overloads* GitHub's "ready for review" as the CI trigger (fine when no human is waiting on the draft→ready signal).
+  - `gh workflow run <ci.yml> --ref <branch>` (`workflow_dispatch`) — keeps "ready for review" as a human signal, but runs the full suite (no PR diff base → no path-filter, more minutes).
+  - enqueue to the merge queue if the repo gates on `merge_group`.
+- **No CI:** `statusCheckRollup` is empty — nothing to wait for; go to Step 7.
 
 ```bash
+gh pr ready <pr>          # gated CI: draft → ready triggers the one run (or: gh workflow run / enqueue)
 gh pr checks <pr> --watch
 ```
 
-On failure: inspect logs (`gh run view --log-failed` for the failing run), fix the root cause, commit, push (CI reruns automatically), re-watch. Don't merge with red CI.
+On failure: inspect logs (`gh run view --log-failed` for the failing run), fix the root cause, then re-trigger exactly one run — push-coupled: push (reruns automatically); gated: flip back to draft (`gh pr ready --undo <pr>`), fix, mark ready again. Don't merge with red CI.
 
 ## Step 7: Merge
 
@@ -189,6 +206,8 @@ When the subagent verdict is `APPROVE` **and** all CI checks are green:
 ```bash
 gh pr merge <pr> --merge --delete-branch
 ```
+
+For pre-merge-gated CI you can let GitHub merge the moment the gate goes green: `gh pr merge <pr> --auto --merge --delete-branch` (needs the repo's *Allow auto-merge* setting; otherwise merge manually once Step 6 is green).
 
 The `--delete-branch` flag removes the remote branch. Step 8 removes the local branch and any worktree.
 
@@ -234,7 +253,7 @@ Report a one-table summary of everything shipped this invocation:
 |---|---|
 | `using-git-worktrees` | Step 2 detects and reuses the worktree's branch; Step 8 removes the worktree after merge. |
 | `finishing-a-development-branch` | Steps 7 + 8 inline that skill's Option 1 cleanup. State A covers the "push + create PR" path (Option 2). State B is the explicit resume-point when that skill has already completed Option 2 and handed off. |
-| `requesting-code-review` | Step 4 owns review dispatch — pre-push on the local diff for fresh work (so CI runs once), post-push on `gh pr diff` when resuming an open PR. Uses `coderabbit:code-reviewer`, not `superpowers:code-reviewer` — single primary reviewer per change set. |
+| `requesting-code-review` | Step 4 owns review dispatch; review is mandatory before every merge. Timing follows CI coupling (Step 4): pre-push when CI runs on push, post-push (free) when CI is gated pre-merge. Uses `coderabbit:code-reviewer`, not `superpowers:code-reviewer` — single primary reviewer per change set. |
 | `receiving-code-review` | Applied in Step 4 when consuming the reviewer's verdict: verify before implementing, push back with reasoning, no performative language. |
 | `verification-before-completion` | Step 3 (local tests + lint before push), Step 6 (CI green before merge), Step 8 (safe-delete refusal treated as a real signal, not friction). |
 
