@@ -186,11 +186,14 @@ Stash the PR number for Steps 6–8.
 How CI gets triggered depends on the coupling from Step 4:
 
 - **Push-coupled:** the Step 5 push already triggered CI — just watch it.
-- **Pre-merge-gated:** review is complete, so open the gate *now* — that's what fires the single run. Flip the draft to ready (`gh pr ready <pr>` → the `ready_for_review` run), or enqueue to the merge queue if the repo gates on `merge_group`.
+- **Pre-merge-gated:** the gate is what fires the single run. **Invariant for *when* to open it:** only after local tests (Step 3) and review (Step 4) pass *and* you intend to merge — never before review (that wastes the run). The exact moment is a judgement call, not a fixed ritual. Mechanism options:
+  - `gh pr ready <pr>` (draft → ready) — cheapest, keeps the PR's path-filter, but *overloads* GitHub's "ready for review" as the CI trigger (fine when no human is waiting on the draft→ready signal).
+  - `gh workflow run <ci.yml> --ref <branch>` (`workflow_dispatch`) — keeps "ready for review" as a human signal, but runs the full suite (no PR diff base → no path-filter, more minutes).
+  - enqueue to the merge queue if the repo gates on `merge_group`.
 - **No CI:** `statusCheckRollup` is empty — nothing to wait for; go to Step 7.
 
 ```bash
-gh pr ready <pr>          # gated CI only: draft → ready triggers the one run
+gh pr ready <pr>          # gated CI: draft → ready triggers the one run (or: gh workflow run / enqueue)
 gh pr checks <pr> --watch
 ```
 
