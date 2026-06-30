@@ -1,0 +1,328 @@
+<!doctype html>
+<!--
+  STORM Deep Research — interactive human-facing page.
+  Produced ONLY when +eli5 is enabled. Self-contained: inline CSS + vanilla JS, no external
+  fonts/scripts/CDNs, works offline by double-click.
+
+  HOW TO FILL (clone this file, replace {{PLACEHOLDERS}}, keep the CSS/JS verbatim):
+  - {{TOPIC_TITLE}}        one-line title
+  - {{GENERATED_DATE}}     e.g. 2026-06-30
+  - {{VERIFY_BANNER}}      e.g. "24 claims checked · 3 killed · 2 corrected · 1 demoted"
+  - {{ELI5_HTML}}          the ELI5 explainer as HTML (<p>, one analogy; from verified findings)
+  - {{ELI5_TLDR}}          one-sentence bottom line for the hero
+  - {{EXEC_SUMMARY_HTML}}  decision-maker summary (settled facts first, then contested)
+  - FINDINGS: repeat the .card block in #findings, one per verified finding.
+      data-score = confidence 1-10; the meter width + colour derive from it via JS.
+  - TENSIONS: repeat the <details class="tension"> block, one per contradiction.
+  - {{ASSERT_LI}} / {{CAVEAT_LI}} / {{AVOID_LI}}  <li> items for the claim-safety guide
+  - {{FRONTIER_QUESTION}}  the one question that would change the conclusions
+  - {{IMPL_BRIEF_HTML}}    the Implementation Brief rendered as HTML (kept collapsed; AI-facing)
+  - {{REFERENCES_LI}}      <li> per source, each with a <span class="vtag ok|warn|bad">status</span>
+  - TOC: the #toc links are wired to section ids automatically by JS — no manual edits needed.
+  Do NOT introduce any claim, number, or nuance not already in the verified report.
+-->
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TOPIC_TITLE}} — STORM Deep Research</title>
+<style>
+  :root{
+    --bg:#f7f8fa; --surface:#ffffff; --ink:#1a1d24; --muted:#5b6573; --line:#e4e8ee;
+    --accent:#3b6ef5; --accent-soft:#eaf0ff; --hi:#0b8f5a; --mid:#c98a00; --lo:#d24a4a;
+    --shadow:0 1px 3px rgba(20,30,50,.06),0 8px 24px rgba(20,30,50,.06);
+    --mono:ui-monospace,"SFMono-Regular",Consolas,"Liberation Mono",monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,"Helvetica Neue",Arial,sans-serif;
+    --maxw:1180px;
+  }
+  html[data-theme="dark"]{
+    --bg:#0e1117; --surface:#161b22; --ink:#e7ecf3; --muted:#9aa6b6; --line:#262d39;
+    --accent:#6b97ff; --accent-soft:#1b2438; --hi:#3fd28b; --mid:#e7b54a; --lo:#ff7676;
+    --shadow:0 1px 3px rgba(0,0,0,.4),0 8px 28px rgba(0,0,0,.45);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+       line-height:1.62;font-size:17px;-webkit-font-smoothing:antialiased}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  h1,h2,h3{line-height:1.25;letter-spacing:-.01em}
+
+  /* reading progress */
+  #progress{position:fixed;top:0;left:0;height:3px;width:0;background:var(--accent);z-index:50;transition:width .1s linear}
+
+  /* top bar */
+  header.bar{position:sticky;top:0;z-index:40;background:color-mix(in srgb,var(--surface) 88%,transparent);
+    backdrop-filter:saturate(140%) blur(8px);border-bottom:1px solid var(--line)}
+  .bar-in{max-width:var(--maxw);margin:0 auto;padding:10px 22px;display:flex;align-items:center;gap:14px}
+  .brand{font-weight:700;font-size:14px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+  .brand b{color:var(--accent)}
+  .bar .spacer{flex:1}
+  .toggle{display:inline-flex;background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:3px}
+  .toggle button{border:0;background:transparent;color:var(--muted);font:inherit;font-size:13px;font-weight:600;
+    padding:5px 14px;border-radius:999px;cursor:pointer}
+  .toggle button[aria-pressed="true"]{background:var(--accent);color:#fff}
+  .iconbtn{border:1px solid var(--line);background:var(--surface);color:var(--ink);width:36px;height:34px;
+    border-radius:9px;cursor:pointer;font-size:15px}
+
+  /* layout */
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 22px;display:grid;
+    grid-template-columns:230px minmax(0,1fr);gap:40px}
+  nav#toc{position:sticky;top:70px;align-self:start;height:max-content;padding:22px 0;font-size:14px}
+  nav#toc a{display:block;color:var(--muted);padding:5px 12px;border-left:2px solid transparent;border-radius:0 6px 6px 0}
+  nav#toc a.active{color:var(--ink);border-left-color:var(--accent);background:var(--accent-soft);font-weight:600}
+  main{padding:8px 0 80px;min-width:0}
+
+  /* hero */
+  .hero{padding:46px 0 30px;border-bottom:1px solid var(--line)}
+  .hero .kicker{color:var(--accent);font-weight:700;font-size:13px;letter-spacing:.12em;text-transform:uppercase}
+  .hero h1{font-size:clamp(28px,4.4vw,46px);margin:.32em 0 .25em}
+  .hero .tldr{font-size:20px;color:var(--muted);max-width:60ch}
+  .meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}
+  .pill{font-size:12.5px;font-weight:600;color:var(--muted);background:var(--surface);border:1px solid var(--line);
+    border-radius:999px;padding:5px 12px}
+  .pill.verify{color:var(--hi);border-color:color-mix(in srgb,var(--hi) 35%,var(--line))}
+
+  section{padding:40px 0;border-bottom:1px solid var(--line);scroll-margin-top:74px}
+  section > h2{font-size:13px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);margin:0 0 4px}
+  section > .h{font-size:27px;margin:0 0 18px}
+
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px 22px;
+    box-shadow:var(--shadow);margin:14px 0}
+  .card h3{margin:0 0 6px;font-size:19px}
+  .meter{height:7px;border-radius:99px;background:var(--line);overflow:hidden;margin:10px 0 4px;max-width:260px}
+  .meter > span{display:block;height:100%;border-radius:99px}
+  .score-row{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted);font-weight:600}
+  .chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}
+  .chip{font-size:12.5px;border-radius:8px;padding:4px 10px;border:1px solid var(--line);color:var(--muted)}
+  .chip.sup{color:var(--hi);border-color:color-mix(in srgb,var(--hi) 30%,var(--line));background:color-mix(in srgb,var(--hi) 8%,transparent)}
+  .chip.chal{color:var(--lo);border-color:color-mix(in srgb,var(--lo) 30%,var(--line));background:color-mix(in srgb,var(--lo) 8%,transparent)}
+
+  details.tension{background:var(--surface);border:1px solid var(--line);border-radius:12px;margin:10px 0;overflow:hidden}
+  details.tension > summary{cursor:pointer;padding:15px 18px;font-weight:600;list-style:none;display:flex;gap:10px;align-items:center}
+  details.tension > summary::-webkit-details-marker{display:none}
+  details.tension > summary::before{content:"›";color:var(--accent);font-size:20px;transition:transform .2s;line-height:1}
+  details.tension[open] > summary::before{transform:rotate(90deg)}
+  details.tension .body{padding:0 18px 16px 40px;color:var(--muted)}
+
+  .safety{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .safecol{border:1px solid var(--line);border-radius:12px;padding:16px 18px;background:var(--surface)}
+  .safecol h4{margin:0 0 8px;font-size:14px;letter-spacing:.04em;text-transform:uppercase}
+  .safecol.assert{border-top:3px solid var(--hi)} .safecol.assert h4{color:var(--hi)}
+  .safecol.caveat{border-top:3px solid var(--mid)} .safecol.caveat h4{color:var(--mid)}
+  .safecol.avoid{border-top:3px solid var(--lo)} .safecol.avoid h4{color:var(--lo)}
+  .safecol ul{margin:0;padding-left:18px;font-size:15px} .safecol li{margin:6px 0}
+
+  .frontier{background:linear-gradient(135deg,var(--accent-soft),transparent);border:1px solid color-mix(in srgb,var(--accent) 30%,var(--line));
+    border-radius:14px;padding:24px 26px;font-size:21px;font-weight:600}
+
+  .brief{background:var(--surface);border:1px solid var(--line);border-radius:12px}
+  .brief > summary{cursor:pointer;padding:16px 20px;font-weight:700;display:flex;align-items:center;gap:10px;list-style:none}
+  .brief > summary::-webkit-details-marker{display:none}
+  .brief .briefhead-tag{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#fff;
+    background:var(--muted);border-radius:6px;padding:3px 8px}
+  .brief pre{margin:0;padding:0 20px 20px;overflow:auto;font-family:var(--mono);font-size:13.5px;line-height:1.55;white-space:pre-wrap}
+  .copybtn{margin-left:auto;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;
+    font-size:12.5px;font-weight:600;padding:5px 12px;border-radius:8px;cursor:pointer}
+
+  .refs{font-size:14px;color:var(--muted)} .refs li{margin:7px 0;word-break:break-word}
+  .vtag{font-size:11px;font-weight:700;border-radius:5px;padding:1px 7px;margin-right:7px;text-transform:uppercase;letter-spacing:.04em}
+  .vtag.ok{color:var(--hi);background:color-mix(in srgb,var(--hi) 14%,transparent)}
+  .vtag.warn{color:var(--mid);background:color-mix(in srgb,var(--mid) 16%,transparent)}
+  .vtag.bad{color:var(--lo);background:color-mix(in srgb,var(--lo) 14%,transparent)}
+
+  /* Simple ⇄ Full mirror: body class toggles which depth shows */
+  body.view-simple .detail-only{display:none}
+  body.view-full   .eli5-lead{opacity:.6}
+  .eli5-lead{border-left:3px solid var(--accent);padding:4px 0 4px 18px;font-size:19px}
+
+  /* reveal on scroll */
+  .reveal{opacity:0;transform:translateY(14px);transition:opacity .5s ease,transform .5s ease}
+  .reveal.in{opacity:1;transform:none}
+  @media (prefers-reduced-motion:reduce){.reveal{opacity:1;transform:none;transition:none}html{scroll-behavior:auto}}
+
+  @media(max-width:880px){
+    .wrap{grid-template-columns:1fr;gap:0}
+    nav#toc{display:none}
+    .safety{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body class="view-simple">
+<div id="progress"></div>
+
+<header class="bar">
+  <div class="bar-in">
+    <span class="brand"><b>STORM</b> Deep Research</span>
+    <span class="spacer"></span>
+    <div class="toggle" role="group" aria-label="Reading depth">
+      <button id="btn-simple" aria-pressed="true">Simple</button>
+      <button id="btn-full" aria-pressed="false">Full</button>
+    </div>
+    <button class="iconbtn" id="theme" title="Toggle theme" aria-label="Toggle theme">◐</button>
+  </div>
+</header>
+
+<div class="wrap">
+  <nav id="toc" aria-label="Contents"></nav>
+
+  <main>
+    <div class="hero reveal">
+      <div class="kicker">Plain-language briefing</div>
+      <h1>{{TOPIC_TITLE}}</h1>
+      <p class="tldr">{{ELI5_TLDR}}</p>
+      <div class="meta">
+        <span class="pill">Generated {{GENERATED_DATE}}</span>
+        <span class="pill verify">✓ {{VERIFY_BANNER}}</span>
+        <span class="pill">Toggle <b>Full</b> for the cited depth</span>
+      </div>
+    </div>
+
+    <section id="eli5">
+      <h2>In plain language</h2>
+      <div class="h">The short version</div>
+      <div class="eli5-lead">{{ELI5_HTML}}</div>
+    </section>
+
+    <section id="summary" class="detail-only">
+      <h2>Executive summary</h2>
+      <div class="h">What we found</div>
+      {{EXEC_SUMMARY_HTML}}
+    </section>
+
+    <section id="findings">
+      <h2>Key findings</h2>
+      <div class="h">Ranked by reliability</div>
+      <!-- REPEAT per finding. data-score 1-10. The detail <p> shows only in Full view; the title + plain line always show. -->
+      <div class="card reveal" data-score="9">
+        <h3>{{FINDING_TITLE}}</h3>
+        <div class="score-row"><span class="meter"><span></span></span><span class="score-label"></span></div>
+        <p>{{FINDING_PLAIN}}</p>
+        <p class="detail-only">{{FINDING_DETAIL_WITH_CITATIONS}}</p>
+        <div class="chips">
+          <span class="chip sup">Supported by {{WHO}}</span>
+          <span class="chip chal">Challenged by {{WHO_OR_NoOne}}</span>
+        </div>
+      </div>
+      <!-- /REPEAT -->
+    </section>
+
+    <section id="tensions" class="detail-only">
+      <h2>Where the evidence disagrees</h2>
+      <div class="h">Open tensions</div>
+      <!-- REPEAT per contradiction -->
+      <details class="tension"><summary>{{TENSION_TITLE}}</summary>
+        <div class="body">{{TENSION_BODY}}</div>
+      </details>
+      <!-- /REPEAT -->
+    </section>
+
+    <section id="safety">
+      <h2>How confident should you be</h2>
+      <div class="h">What's safe to say</div>
+      <div class="safety">
+        <div class="safecol assert reveal"><h4>Assert</h4><ul>{{ASSERT_LI}}</ul></div>
+        <div class="safecol caveat reveal"><h4>Caveat</h4><ul>{{CAVEAT_LI}}</ul></div>
+        <div class="safecol avoid reveal"><h4>Avoid</h4><ul>{{AVOID_LI}}</ul></div>
+      </div>
+    </section>
+
+    <section id="frontier">
+      <h2>The frontier question</h2>
+      <div class="h">What would change the picture</div>
+      <div class="frontier reveal">{{FRONTIER_QUESTION}}</div>
+    </section>
+
+    <section id="brief" class="detail-only">
+      <h2>For builders</h2>
+      <div class="h">Implementation Brief</div>
+      <p class="refs">Machine-actionable spec — collapse-friendly. Copy it straight into a coding agent.</p>
+      <details class="brief">
+        <summary><span class="briefhead-tag">AI-facing</span> Implementation Brief
+          <button class="copybtn" id="copybrief" type="button">Copy</button></summary>
+        <pre id="briefpre">{{IMPL_BRIEF_HTML}}</pre>
+      </details>
+    </section>
+
+    <section id="refs" class="detail-only" style="border-bottom:none">
+      <h2>Sources</h2>
+      <div class="h">References &amp; verification</div>
+      <ul class="refs">{{REFERENCES_LI}}</ul>
+    </section>
+  </main>
+</div>
+
+<script>
+(function(){
+  var root=document.documentElement, body=document.body;
+
+  /* theme (persisted) */
+  try{var t=localStorage.getItem('storm-theme'); if(t) root.setAttribute('data-theme',t);}catch(e){}
+  document.getElementById('theme').addEventListener('click',function(){
+    var n=root.getAttribute('data-theme')==='dark'?'light':'dark';
+    root.setAttribute('data-theme',n); try{localStorage.setItem('storm-theme',n);}catch(e){}
+  });
+
+  /* Simple ⇄ Full */
+  var bs=document.getElementById('btn-simple'), bf=document.getElementById('btn-full');
+  function setView(v){
+    body.classList.toggle('view-simple',v==='simple');
+    body.classList.toggle('view-full',v==='full');
+    bs.setAttribute('aria-pressed',v==='simple'); bf.setAttribute('aria-pressed',v==='full');
+    buildTOC();
+  }
+  bs.addEventListener('click',function(){setView('simple');});
+  bf.addEventListener('click',function(){setView('full');});
+
+  /* confidence meters: width + colour from data-score */
+  document.querySelectorAll('#findings .card').forEach(function(c){
+    var s=Math.max(1,Math.min(10,parseInt(c.getAttribute('data-score'),10)||5));
+    var bar=c.querySelector('.meter>span'), lab=c.querySelector('.score-label');
+    var col=s>=8?'var(--hi)':s>=5?'var(--mid)':'var(--lo)';
+    bar.style.width=(s*10)+'%'; bar.style.background=col;
+    if(lab) lab.textContent='Confidence '+s+'/10';
+  });
+
+  /* TOC build + scroll-spy (skips hidden detail-only sections in Simple view) */
+  var toc=document.getElementById('toc');
+  function buildTOC(){
+    toc.innerHTML='';
+    document.querySelectorAll('main section').forEach(function(sec){
+      if(sec.offsetParent===null) return; // hidden in current view
+      var h=sec.querySelector('.h'); if(!h) return;
+      var a=document.createElement('a'); a.href='#'+sec.id; a.textContent=h.textContent;
+      a.dataset.id=sec.id; toc.appendChild(a);
+    });
+  }
+  buildTOC();
+  var spy=new IntersectionObserver(function(es){
+    es.forEach(function(e){ if(e.isIntersecting){
+      toc.querySelectorAll('a').forEach(function(a){a.classList.toggle('active',a.dataset.id===e.target.id);});
+    }});
+  },{rootMargin:'-45% 0px -50% 0px'});
+  document.querySelectorAll('main section').forEach(function(s){spy.observe(s);});
+
+  /* reveal on scroll */
+  var rev=new IntersectionObserver(function(es){
+    es.forEach(function(e){ if(e.isIntersecting){e.target.classList.add('in'); rev.unobserve(e.target);} });
+  },{rootMargin:'0px 0px -8% 0px'});
+  document.querySelectorAll('.reveal').forEach(function(el){rev.observe(el);});
+
+  /* reading progress */
+  var prog=document.getElementById('progress');
+  addEventListener('scroll',function(){
+    var h=document.documentElement, max=h.scrollHeight-h.clientHeight;
+    prog.style.width=(max>0?(h.scrollTop/max*100):0)+'%';
+  },{passive:true});
+
+  /* copy Implementation Brief */
+  var cb=document.getElementById('copybrief');
+  if(cb) cb.addEventListener('click',function(ev){
+    ev.preventDefault();
+    var txt=document.getElementById('briefpre').innerText;
+    navigator.clipboard.writeText(txt).then(function(){var o=cb.textContent;cb.textContent='Copied ✓';setTimeout(function(){cb.textContent=o;},1400);});
+  });
+})();
+</script>
+</body>
+</html>
