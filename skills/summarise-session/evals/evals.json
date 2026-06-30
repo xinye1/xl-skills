@@ -1,0 +1,23 @@
+{
+  "skill_name": "summarise-session",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "is there anything worth highlighting during this session? apart from the required work done, anything around new discoveries, unexpected issues, improvements on the original plan, deviations, detours, how did the agents work, how many of them, how quick each subagent finished their work, how did you find the orchestration, any update to the plan, gotchas etc? provide a summary of things to close down this session.",
+      "expected_output": "A concise prose retrospective (NOT a code block / handover prompt) covering the meta-layer: subagent count + timing + tokens + quality, orchestration read, discoveries, deviations, gotchas, and a closing list of candidate follow-ups (issues to file / memories to save) surfaced for the user to action — not auto-actioned. Honest about anything that went sideways; no fabricated numbers.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "ok we just shipped phase S2 and I'm about to start a fresh chat for S3. wrap this one up for me.",
+      "expected_output": "A retrospective for the human (prose, not a handover prompt), and — because a fresh chat / next phase is imminent — a note that `handover` is the forward companion to run next. Surfaces follow-up candidates. Does NOT emit the copy-paste handover prompt itself (that's the other skill).",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "how did the agents do this session?",
+      "expected_output": "A focused read on subagent / orchestration performance: per-agent table (task, time, tokens, tool count, outcome) where the data exists, plus a qualitative judgement on decomposition, dispatch order, and model-tier fit — including anything unflattering (re-dispatches, mis-claimed evidence, wrong tier). 'Not captured' for any figure not actually tracked, never an invented number.",
+      "files": []
+    }
+  ]
+}

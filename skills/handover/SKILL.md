@@ -199,8 +199,9 @@ Why this split: subagents keep each task's context tight; the orchestrator keeps
 Before handing over to the next phase, in this order:
 
 1. Verify exit criteria (tests green, PR merged, UAT ticked).
-2. Write a phase memory entry to `<project-memory-dir>/phase_<target-phase>_<short-title>.md` — outcome, key decisions, deviations, carry-forwards. Add a pointer line to `MEMORY.md`.
-3. Produce the next handover prompt using the `handover` skill.
+2. Run `summarise-session` for the reflective pass — surface gotchas, deviations, subagent/orchestration findings, and any follow-ups (issues to file, memories to save) for the user to action. This is what decides what the phase memory should persist.
+3. Write a phase memory entry to `<project-memory-dir>/phase_<target-phase>_<short-title>.md` — outcome, key decisions, deviations, carry-forwards. Add a pointer line to `MEMORY.md`.
+4. Produce the next handover prompt using the `handover` skill.
 ~~~
 
 ## Step 5: Hand off
@@ -227,6 +228,7 @@ Do not bury the prompt under a chatty summary; the user needs to copy it cleanly
 
 | Skill | Role |
 |---|---|
+| `summarise-session` | The backward-looking companion. At a phase boundary, run `summarise-session` *first* — its retrospective surfaces the gotchas, deviations, and follow-up candidates (issues to file, memories to save) that this skill's "Deviations from plan", "Key guardrails", and Step 3 phase memory then carry forward. The summary is the sense-making pass; the handover is the persistence + forward pass. |
 | `execute-phased-plan` | Governs the rhythm of long multi-phase plans end-to-end; this skill is the "emit the handover" step of that rhythm, extracted so it can also be invoked standalone whenever context fills up. |
 | `superpowers:executing-plans` | Referenced inside the handover prompt — each subagent spawned by the next chat follows this skill to execute its individual task. |
 | `superpowers:subagent-driven-development` | Background pattern for the orchestration model embedded *inside* the emitted handover prompt — the receiving chat uses that pattern to dispatch per-task subagents. |
