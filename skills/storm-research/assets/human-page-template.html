@@ -1,6 +1,6 @@
 <!doctype html>
 <!--
-  STORM Deep Research — interactive human-facing page.
+  STORM Research — interactive human-facing page.
   Produced ONLY when +eli5 is enabled. Self-contained: inline CSS + vanilla JS, no external
   fonts/scripts/CDNs, works offline by double-click.
 
@@ -25,7 +25,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{TOPIC_TITLE}} — STORM Deep Research</title>
+<title>{{TOPIC_TITLE}} — STORM Research</title>
 <style>
   :root{
     --bg:#f7f8fa; --surface:#ffffff; --ink:#1a1d24; --muted:#5b6573; --line:#e4e8ee;
@@ -153,13 +153,13 @@
 
 <header class="bar">
   <div class="bar-in">
-    <span class="brand"><b>STORM</b> Deep Research</span>
+    <span class="brand"><b>STORM</b> Research</span>
     <span class="spacer"></span>
     <div class="toggle" role="group" aria-label="Reading depth">
-      <button id="btn-simple" aria-pressed="true">Simple</button>
-      <button id="btn-full" aria-pressed="false">Full</button>
+      <button type="button" id="btn-simple" aria-pressed="true">Simple</button>
+      <button type="button" id="btn-full" aria-pressed="false">Full</button>
     </div>
-    <button class="iconbtn" id="theme" title="Toggle theme" aria-label="Toggle theme">◐</button>
+    <button type="button" class="iconbtn" id="theme" title="Toggle theme" aria-label="Toggle theme">◐</button>
   </div>
 </header>
 
@@ -296,9 +296,14 @@
   }
   buildTOC();
   var spy=new IntersectionObserver(function(es){
-    es.forEach(function(e){ if(e.isIntersecting){
-      toc.querySelectorAll('a').forEach(function(a){a.classList.toggle('active',a.dataset.id===e.target.id);});
-    }});
+    es.forEach(function(e){
+      // Only react to sections that have a TOC link in the current view. A detail-only
+      // section is hidden in Simple view and has no link; without this guard, scrolling
+      // through it would clear the active highlight from every link.
+      if(e.isIntersecting && toc.querySelector('a[data-id="'+e.target.id+'"]')){
+        toc.querySelectorAll('a').forEach(function(a){a.classList.toggle('active',a.dataset.id===e.target.id);});
+      }
+    });
   },{rootMargin:'-45% 0px -50% 0px'});
   document.querySelectorAll('main section').forEach(function(s){spy.observe(s);});
 
