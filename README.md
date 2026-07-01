@@ -13,57 +13,30 @@ xl-skills/
 
 Each skill is a directory under `skills/` containing a `SKILL.md` with YAML frontmatter (`name`, `description`) and Markdown instructions. Optional subdirectories per skill: `scripts/`, `references/`, `assets/`.
 
-## Installing a skill locally
+## Installing locally
 
-Symlink any skill into `~/.claude/skills/` so edits in this repo take effect immediately.
+Symlink this repo's `skills/` directory to `~/.claude/skills` once. Because it's a single folder-level link (not per-skill links), any skill you add, rename, or edit in the repo shows up immediately — no relinking needed.
+
+> Note: `~/.claude/skills` must not already exist as a real directory. If it does, move or remove it first (back up anything you want to keep).
 
 **macOS / Linux** (run from the repo root):
 
 ```bash
-mkdir -p ~/.claude/skills
-ln -s "$(pwd)/skills/<name>" ~/.claude/skills/<name>
+ln -s "$(pwd)/skills" ~/.claude/skills
 ```
 
 **Windows** (Command Prompt, run from the repo root):
 
 ```cmd
-mklink /J "%USERPROFILE%\.claude\skills\<name>" "%CD%\skills\<name>"
+mklink /J "%USERPROFILE%\.claude\skills" "%CD%\skills"
 ```
 
 `/J` creates a directory junction, which works without admin access or Developer Mode.
 
-## Installing all skills at once
-
-**macOS / Linux**:
-
-```bash
-mkdir -p ~/.claude/skills
-for dir in skills/*/; do
-  ln -s "$(pwd)/$dir" ~/.claude/skills/$(basename "$dir")
-done
-```
-
-**Windows** (Command Prompt):
-
-```cmd
-if not exist "%USERPROFILE%\.claude\skills" mkdir "%USERPROFILE%\.claude\skills"
-for /d %d in (skills\*) do mklink /J "%USERPROFILE%\.claude\skills\%~nd" "%CD%\%d"
-```
-
-**Windows** (PowerShell):
+**Windows** (PowerShell, run from the repo root):
 
 ```powershell
-New-Item -ItemType Directory -Force "$env:USERPROFILE\.claude\skills" | Out-Null
-$repoRoot = $PWD.Path
-Get-ChildItem -Directory "$repoRoot\skills" | ForEach-Object {
-  $link = "$env:USERPROFILE\.claude\skills\$($_.Name)"
-  if (-not (Test-Path $link)) {
-    New-Item -ItemType Junction -Path $link -Target "$repoRoot\skills\$($_.Name)" | Out-Null
-    Write-Host "Linked: $($_.Name)"
-  } else {
-    Write-Host "Skipped (exists): $($_.Name)"
-  }
-}
+New-Item -ItemType Junction -Path "$env:USERPROFILE\.claude\skills" -Target "$PWD\skills"
 ```
 
 ## Packaging a skill for sharing
