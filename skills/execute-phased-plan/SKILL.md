@@ -1,6 +1,6 @@
 ---
 name: execute-phased-plan
-description: Use when the user hands over an implementation plan with 3+ phases without explicitly asking for end-to-end auto-accept, or says "execute this plan phase by phase", "do one phase at a time", "stop after phase X", "don't carry on with the next phase", "pause after this one", or otherwise wants chat-level pacing on a long plan. Casual phrasing counts — the common thread is: finish one phase, stop, hand off. Not for single-phase tasks; a request for just the handover prompt itself is the handover skill.
+description: Use when the user hands over an implementation plan with 3+ phases without explicitly asking for end-to-end auto-accept, or says "execute this plan phase by phase", "do one phase at a time", "stop after phase X", "don't carry on with the next phase", "pause after this one", or otherwise wants chat-level pacing on a long plan. Casual phrasing counts — the common thread is finishing one phase, stopping, handing off. Not for single-phase tasks; a request for just the handover prompt itself is the handover skill.
 ---
 
 # Execute Phased Plan — One Phase per Chat, Handover Between
@@ -27,9 +27,9 @@ This single sentence prevents the most common failure mode: Claude finishing one
 
 ## Step 1: Emit the first handover prompt (skip only if executing a handover-launched chat)
 
-Default behaviour: once scope is confirmed, **immediately produce a handover prompt for the current phase** via the `handover` skill (see Step 3), then stop. Do not start implementing. The user pastes that prompt into a fresh chat, and Phase 1 executes there.
+Default behaviour: once scope is confirmed, **immediately produce a handover prompt for the current phase** via the `handover` skill (see Step 3), then stop. Do not start implementing. The user pastes that prompt into a fresh chat, and that phase executes there.
 
-Why this matters: if the user invoked you after brainstorming, plan-writing, spec review, or any other upstream work, that chat's context is already partially spent. Importing it into execution defeats the whole point of phase pacing. A fresh chat that *starts* from the handover prompt has exactly the context Phase 1 needs — no more, no less.
+Why this matters: if the user invoked you after brainstorming, plan-writing, spec review, or any other upstream work, that chat's context is already partially spent. Importing it into execution defeats the whole point of phase pacing. A fresh chat that *starts* from the handover prompt has exactly the context the phase needs — no more, no less.
 
 **Skip this step and go straight to Step 2 only if** one of these is true:
 
@@ -41,7 +41,7 @@ In all other cases, emit the handover and stop. If you're unsure, emit the hando
 
 ## Step 2: Execute the single phase via subagent orchestration
 
-Unless the user chose **Manual** mode in Step 0 (they drive, you assist inline — the delegation gate doesn't apply), execute the phase by the shared execution model: **read `../handover/references/execution-model.md`** (sibling skill folder; the same text every handover prompt embeds) and apply it end to end. It is the single source of truth for the delegation gate, task decomposition with user validation, per-task subagent dispatch with explicit model-tier choice, report handling, and the orchestrator-run overall validation that gates the phase.
+Unless the user chose **Manual** mode in Step 0 (they drive, you assist inline — the delegation gate doesn't apply), execute the phase by the shared execution model: **read `../handover/references/execution-model.md`** (sibling skill folder; the same text every handover prompt embeds — if the file isn't present because this skill was packaged standalone, use the execution model embedded in the incoming handover prompt) and apply it end to end. It is the single source of truth for the delegation gate, task decomposition with user validation, per-task subagent dispatch with explicit model-tier choice, report handling, and the orchestrator-run overall validation that gates the phase.
 
 Two additions when running it from this skill:
 
@@ -53,9 +53,9 @@ Two additions when running it from this skill:
 
 ## Step 3: Close the phase via `handover`
 
-Once the execution model's overall validation is green, invoke the `handover` skill and let it run in full — it verifies the phase's exit criteria itself (its Step 2), writes the phase memory entry, and emits the next handover prompt. If its verification finds a red criterion, **stay in this chat and fix it** — never label a red phase complete; that lie corrupts the next chat.
+Once the execution model's overall validation is green, run `ship` (merge the PR, clean up local state), then invoke the `handover` skill and let it run in full — it verifies the phase's exit criteria itself (its Step 2), writes the phase memory entry, and emits the next handover prompt. If its verification finds a red criterion, **stay in this chat and fix it** — never label a red phase complete; that lie corrupts the next chat.
 
-**First handover only (from Step 1):** there is no verification evidence or deviations yet — mark those sections "N/A — Phase 1 has not started".
+**First handover only (from Step 1):** there is no verification evidence or deviations yet — mark those sections "N/A — phase not started".
 
 Subsequent handovers are produced the same way by each executing chat. `handover` is the authoritative skill for all handover writing and its anti-patterns; this skill only sets the rhythm.
 

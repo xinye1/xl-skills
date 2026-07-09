@@ -40,7 +40,7 @@ occasionally steers**; agents ask questions on the user's behalf to surface *unk
 information is tracked in a **dynamic mind map**; output is a comprehensive report. Reported
 preference: 70% over a search engine, 78% over a RAG chatbot (author-reported, small-N).
 
-## 2. Built-in `deep-research` (the repo's current research skill)
+## 2. `deep-research` (an earlier built-in research skill)
 
 A multi-agent **Workflow** optimized for **fact-checking**, not article-writing:
 
