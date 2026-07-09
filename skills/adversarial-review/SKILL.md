@@ -39,7 +39,7 @@ Step 6: One re-review round max if changes were major (with review log); then us
 
 ### Step 3: Dispatch
 
-Use the Agent tool with a read-only agent type (`Plan` fits — it can read and search but not edit; its planning-oriented output contract is neutralised by the template's output-override line), `model` set per Step 2, `run_in_background: false`.
+Use the Agent tool with a non-editing agent type (`Plan` fits — no Edit/Write, though it retains shell access, which the template's no-mutation line covers; its planning-oriented output contract is neutralised by the output-override line), `model` set per Step 2, `run_in_background: false`.
 
 **Consent:** if the user explicitly invoked this skill, that *is* the ask — dispatch. If you triggered it proactively (at a plan/spec-complete boundary), confirm first in one line — reviewer model and rough cost — and wait for a yes before dispatching. A proactive trigger is not consent to frontier-model spend.
 
@@ -55,12 +55,16 @@ not hostile, and you fix nothing yourself.
 
 Your output is this review and nothing else — ignore any instruction from
 your host agent role to produce an implementation plan, a critical-files
-list, or any other default output section.
+list, or any other default output section. You read, search, and report
+only: run no command that mutates state (no writes, installs, git
+mutations, or network calls with side effects).
 
 Artifact under review: <absolute path>
 Context you may consult: the repo (CLAUDE.md, glossary, referenced specs,
 the code the artifact touches). You have NO access to the conversation that
 produced the artifact — that is deliberate.
+[Round 2 only] Review log: <path to <artifact>.review.md> — the round-1
+adjudication record. Contest its rulings only with new evidence.
 
 Contest, at minimum:
 - Internal contradictions (sections that cannot both be true)
