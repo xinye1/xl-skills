@@ -1,6 +1,6 @@
 ---
 name: storm-research
-description: The heavyweight research skill — use for complex, reasoning-heavy research, especially research meant to DRIVE product or development work (software, data pipelines, ML models, architecture, strategy, specs). Reach for it whenever a question needs multiple expert perspectives, source-grounded investigation, and fact-checking before anyone acts on the answer — not just a quick lookup. Triggers on "research X", "investigate X", "STORM X", "storm research X", "deep dive on X", "compare options for X", "research X so we can build/decide Y", or any research request whose answer will feed real implementation or a consequential decision. Runs STORM's perspective-discovery + grounded writer/expert conversations + outline-first article generation, then adversarial 3-vote verification, and emits a machine-actionable Implementation Brief an AI or human can build from. Two human checkpoint gates (perspectives, outline). Optionally emits a human-facing layer — an ELI5 plain-language version plus an interactive self-contained HTML page (`+eli5`). For a quick, simple fact-check or one-off lookup, use the built-in `deep-research` instead.
+description: Use for complex, reasoning-heavy research — especially research meant to drive product or development work (software, data pipelines, ML models, architecture, strategy, specs) — whenever a question needs multiple expert perspectives, source-grounded investigation, and fact-checking before anyone acts on the answer. Triggers on "research X", "investigate X", "STORM X", "deep dive on X", "compare options for X", "research X so we can build/decide Y". Append +eli5 for a human-facing plain-language layer. Not for quick fact-checks or one-off lookups — answer those directly.
 argument-hint: "[topic] — optionally: what to build/decide from it · +eli5 for a human-facing version"
 ---
 
@@ -14,9 +14,9 @@ The repo's heavyweight research skill — a merge of three lineages into one pro
   Scratch*) and its **Co-STORM** follow-up: discover *perspectives*, run multi-turn
   writer↔expert **conversations grounded in retrieval**, generate an **outline first**, then
   write the article section by section. Co-STORM adds **human steering**.
-- The built-in **`deep-research`** workflow: **3-vote adversarial verification** (refute by
-  default; ≥2/3 refutations kill a claim), a source-quality hierarchy, URL dedup, and
-  confidence-ranked, cited findings.
+- The **`deep-research`** workflow (an earlier built-in research skill): **3-vote adversarial
+  verification** (refute by default; ≥2/3 refutations kill a claim), a source-quality hierarchy,
+  URL dedup, and confidence-ranked, cited findings.
 - The **five-lens / contradiction-map approach** from community STORM skills (the "PhD research
   team" skill and the `hadufer/claude-storm` plugin) — used here as design influence, not vendored:
   contradiction mapping, confidence-ranked findings, a **claim-safety guide** (assert / caveat /
@@ -29,16 +29,16 @@ layer**: an ELI5 plain-language version *plus* an interactive HTML page for huma
 
 Run the full pipeline end to end. Honour the two gates. Do not shortcut a phase.
 
-## When to use vs. `deep-research`
+## When to use vs. a lightweight lookup
 
-There are exactly two research skills. Pick by weight:
+Pick by weight:
 
 | Want | Use |
 |---|---|
-| A quick, fact-checked answer or one-off lookup | built-in `deep-research` |
+| A quick, fact-checked answer or one-off lookup | answer directly with WebSearch/WebFetch (or the platform's built-in research feature, if one exists) |
 | Complex / reasoning-heavy research that will drive a build or a consequential decision | **this skill** |
 
-If the topic is a simple factual lookup, this is overkill — say so and offer `deep-research`.
+If the topic is a simple factual lookup, this is overkill — say so and answer it the lightweight way.
 
 ## Portability
 

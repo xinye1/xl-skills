@@ -1,6 +1,6 @@
 ---
 name: summarise-session
-description: Produce a concise, honest end-of-session retrospective FOR THE USER — not just what shipped (they can read git for that), but the meta-layer they can't see: what was discovered, what went sideways, how the subagents and orchestration actually performed (count, timing, tokens, quality), gotchas worth carrying forward, deviations from plan, and candidate follow-ups (issues to file, memories to save, plan updates) surfaced for the user to action. Use whenever the user asks to "summarise the session", "session summary", "wrap up", "close down the session", "retro", "anything worth highlighting", "anything notable", or signals a session or phase is ending — and proactively right before a handover, because the retrospective is what decides what the handover should persist and carry forward. This is the backward-looking companion to the forward-looking `handover` skill; reach for it even when the user doesn't say the word "summary" but is clearly closing out work.
+description: Use when the user asks to "summarise the session", "session summary", "wrap up", "close down the session", "retro", "anything worth highlighting", "anything notable", "how did the agents do?", or signals a session or phase is ending — even without the word "summary". Also use proactively right before a handover; the retrospective decides what the handover persists. The deliverable is a retrospective for the user about what they couldn't see, not a prompt for the next chat — that's handover.
 ---
 
 # Summarise session — the reflective pass that closes a working session
@@ -72,14 +72,3 @@ So the summary is the sense-making step that *feeds* the handover's persistence 
 - Mid-task, with work still in flight — summarising belongs at a natural close (phase shipped, session ending), not as a status ping during execution.
 - Trivial single-step exchanges — a one-line "done, merged" is the summary; don't ceremony it.
 - When the user explicitly wants only the forward prompt — go straight to `handover`.
-
-## Quick invocation phrases
-
-Recognise these and produce the retrospective without further ado (pull the evidence from the session yourself):
-
-- "summarise the session" / "session summary" / "summarise what we did"
-- "anything worth highlighting?" / "anything notable this session?"
-- "wrap up" / "close down the session" / "close this out"
-- "retro" / "retrospective" / "how did that go?"
-- "how did the agents do?" / "how was the orchestration?"
-- (implicit) the user signals a session or phase is ending and asks what's next — offer a summary, and if they're about to start a fresh chat, note that `handover` is the forward companion.

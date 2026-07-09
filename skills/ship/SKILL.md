@@ -1,6 +1,6 @@
 ---
 name: ship
-description: Ship code changes end-to-end: branch, commit, local tests, subagent code review, push, PR, CI, merge, and local/worktree cleanup. Use when the user says "ship it", "ship the code", "ship the changes", "let's ship", or asks to push/PR/merge current work. Also resumes mid-journey — committed-not-pushed, PR awaiting review, approved-and-ready, or post-merge cleanup — auto-detecting the stage. Merge-side counterpart to the superpowers dev-loop skills; prefer over ad-hoc git/gh commands.
+description: Use when the user says "ship it", "ship the code", "ship the changes", "let's ship", or asks to push, PR, or merge current work — and when resuming any stage of that journey, committed-not-pushed, PR awaiting review, changes requested, approved-and-ready, or post-merge cleanup. Prefer over ad-hoc git/gh commands for anything on the branch→PR→merge→cleanup path; merge-side counterpart to the superpowers dev-loop skills. Not for resolving stray untracked files — that's git-triage.
 ---
 
 # Ship — end-to-end code shipping
@@ -173,9 +173,13 @@ gh pr create [--draft] --base <base> --title "..." --body "$(cat <<'EOF'
 ## Test plan
 - [ ] <verification step>
 - [ ] <verification step>
+
+Closes #<issue>
 EOF
 )"
 ```
+
+The `Closes #<n>` footer is REQUIRED whenever the work has a tracking issue — the merge event is what closes delivered-work issues (never an out-of-band `gh issue close`). One line per issue this PR delivers, and when the PR completes a feature, also `Closes #<feature-parent>` — GitHub sub-issues don't auto-close the parent. Omit the footer only when no issue exists.
 
 If the repo has `.github/pull_request_template.md`, gh applies it automatically — keep the body aligned with its section headers rather than overriding.
 
@@ -253,7 +257,7 @@ Report a one-table summary of everything shipped this invocation:
 |---|---|
 | `using-git-worktrees` | Step 2 detects and reuses the worktree's branch; Step 8 removes the worktree after merge. |
 | `finishing-a-development-branch` | Steps 7 + 8 inline that skill's Option 1 cleanup. State A covers the "push + create PR" path (Option 2). State B is the explicit resume-point when that skill has already completed Option 2 and handed off. |
-| `requesting-code-review` | Step 4 owns review dispatch; review is mandatory before every merge. Timing follows CI coupling (Step 4): pre-push when CI runs on push, post-push (free) when CI is gated pre-merge. Uses `coderabbit:code-reviewer`, not `superpowers:code-reviewer` — single primary reviewer per change set. |
+| `requesting-code-review` | Step 4 owns review dispatch; review is mandatory before every merge. Timing follows CI coupling (Step 4): pre-push when CI runs on push, post-push (free) when CI is gated pre-merge. One primary reviewer per change set — `coderabbit:code-reviewer`; a same-model Claude reviewer is only the degraded fallback. |
 | `receiving-code-review` | Applied in Step 4 when consuming the reviewer's verdict: verify before implementing, push back with reasoning, no performative language. |
 | `verification-before-completion` | Step 3 (local tests + lint before push), Step 6 (CI green before merge), Step 8 (safe-delete refusal treated as a real signal, not friction). |
 

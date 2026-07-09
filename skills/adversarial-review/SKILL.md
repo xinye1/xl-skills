@@ -1,6 +1,6 @@
 ---
 name: adversarial-review
-description: Use when a plan or spec is drafted and needs independent adversarial review before approval or execution — dispatch a cold advanced-model subagent (fable or opus) to constructively oppose the artifact — contest every claim, in service of the work — countering the authoring session's commitment bias. Triggers on "adversarial review", "adversary review", "independent review of this plan/spec", "second opinion on the spec", "red-team this plan", "get fresh eyes on this", "stress-test this spec" — and proactively at plan-complete or spec-complete boundaries before the user approves. For plans and specs (design docs, implementation plans, ADR sets), not code diffs — code goes to the code-review skills.
+description: Use when a plan or spec is drafted and needs independent review before approval or execution, countering the authoring session's commitment bias. Triggers on "adversarial review", "adversary review", "independent review of this plan/spec", "second opinion on the spec", "red-team this plan", "get fresh eyes on this", "stress-test this spec" — and proactively at plan-complete or spec-complete boundaries before the user approves. For plans and specs (design docs, implementation plans, ADR sets), not code diffs — code goes to the code-review skills.
 ---
 
 # Adversarial-Review — independent intra-session review of plans and specs
@@ -123,7 +123,7 @@ If the second review still comes back REJECT, the disagreement is design-level �
 
 | Skill | Role |
 |---|---|
-| `grill-into-design` | Primary upstream — insert after its ADR step (Step 10) and before user review (Step 11), so the ADRs are inside the review scope. Self-review catches placeholders; adversarial-review catches wrong. (Upstream skills don't reference this gate yet — trigger on this skill's own description.) |
+| `grill-into-design` | Primary upstream — its Step 11 offers this gate after the ADRs are written (so they're inside the review scope) and before the user reviews. Self-review catches placeholders; adversarial-review catches wrong. |
 | `superpowers:writing-plans` | Second upstream — review the implementation plan before execution starts. |
 | `execute-phased-plan` / `handover` | Gate at phase boundaries: review the next phase's plan before dispatching a fresh chat on it. |
 | `superpowers:receiving-code-review` | The receiving discipline for Step 4 — verify before agreeing or rebutting. |

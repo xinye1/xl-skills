@@ -1,6 +1,6 @@
 ---
 name: execute-phased-plan
-description: Execute a long, multi-phase implementation plan one phase at a time, stopping at every phase boundary and producing a self-contained handover prompt so the user can resume in a fresh chat. Use whenever the user says "execute this plan phase by phase", "do one phase at a time", "stop after phase X", "write a handover prompt", "give me a prompt for a new/fresh chat to continue", or otherwise signals they want chat-level pacing to avoid burning context on a plan with many phases. Also use when the user hands over a plan with 3+ numbered phases and doesn't explicitly ask for end-to-end auto-accept — long plans default to this pacing unless the user overrides. Trigger even when the phrasing is casual ("don't carry on with the next phase", "pause after this one") — the common thread is: finish one phase, stop, hand off.
+description: Use when the user hands over an implementation plan with 3+ phases without explicitly asking for end-to-end auto-accept, or says "execute this plan phase by phase", "do one phase at a time", "stop after phase X", "don't carry on with the next phase", "pause after this one", or otherwise wants chat-level pacing on a long plan. Casual phrasing counts — the common thread is finishing one phase, stopping, handing off. Not for single-phase tasks; a request for just the handover prompt itself is the handover skill.
 ---
 
 # Execute Phased Plan — One Phase per Chat, Handover Between
@@ -27,9 +27,9 @@ This single sentence prevents the most common failure mode: Claude finishing one
 
 ## Step 1: Emit the first handover prompt (skip only if executing a handover-launched chat)
 
-Default behaviour: once scope is confirmed, **immediately produce a handover prompt for the current phase** using the template in Step 5, then stop. Do not start implementing. The user pastes that prompt into a fresh chat, and Phase 1 executes there.
+Default behaviour: once scope is confirmed, **immediately produce a handover prompt for the current phase** via the `handover` skill (see Step 3), then stop. Do not start implementing. The user pastes that prompt into a fresh chat, and that phase executes there.
 
-Why this matters: if the user invoked you after brainstorming, plan-writing, spec review, or any other upstream work, that chat's context is already partially spent. Importing it into execution defeats the whole point of phase pacing. A fresh chat that *starts* from the handover prompt has exactly the context Phase 1 needs — no more, no less.
+Why this matters: if the user invoked you after brainstorming, plan-writing, spec review, or any other upstream work, that chat's context is already partially spent. Importing it into execution defeats the whole point of phase pacing. A fresh chat that *starts* from the handover prompt has exactly the context the phase needs — no more, no less.
 
 **Skip this step and go straight to Step 2 only if** one of these is true:
 
@@ -41,107 +41,34 @@ In all other cases, emit the handover and stop. If you're unsure, emit the hando
 
 ## Step 2: Execute the single phase via subagent orchestration
 
-**Default execution model for every phase:** decompose the phase into its constituent tasks (as listed in the plan), then orchestrate subagents — one per task. Do not execute tasks yourself inline unless the user explicitly chooses Manual mode in Step 0.
+Unless the user chose **Manual** mode in Step 0 (they drive, you assist inline — the delegation gate doesn't apply), execute the phase by the shared execution model: **read `../handover/references/execution-model.md`** (sibling skill folder; the same text every handover prompt embeds — if the file isn't present because this skill was packaged standalone, use the execution model embedded in the incoming handover prompt) and apply it end to end. It is the single source of truth for the delegation gate, task decomposition with user validation, per-task subagent dispatch with explicit model-tier choice, report handling, and the orchestrator-run overall validation that gates the phase.
 
-### 2a: Decompose and dispatch
+Two additions when running it from this skill:
 
-**Default: every task is delegated to a subagent. Inline execution is the exception and must be named.** (This gate applies in subagent-driven mode. If the user chose **Manual** mode in Step 0, it does not apply — you drive inline as agreed.) Run each task through this gate — "can this go to a subagent?" The answer is yes unless it hits one of these exceptions:
+- Include the repo's dev-loop conventions from `CLAUDE.md` in every subagent prompt (conventional commits, branch off base, PR → base). Merging and cleanup at phase end belong to the `ship` skill.
+- While executing, keep three things close to hand:
+  - **Exit criteria** for this phase from the plan (tests passing, PR merged, UAT green, whatever the plan states).
+  - **Deviations from plan** — aggregate deviations reported by subagents, plus any discovered during overall validation. These go into the handover.
+  - **Secrets / credentials** provided inline by the user — mark their origin so the handover can reference them without re-leaking them into git-tracked files.
 
-- **Overall / integration validation** — your own job as orchestrator (Step 2c). Never delegate it.
-- **Live user decision or interaction** — can't be packaged into a self-contained subagent prompt; keep it with you.
-- **Pure coordination** — merging subagent results, deciding task sequencing. Inherently the orchestrator's.
-- **Sub-trivial tasks** — individually too small to justify a subagent's spin-up cost. Do not run them inline one-by-one; **batch them into a single subagent** (batch only tasks at the same dependency position, so a batch never straddles a sequential boundary). Fall back to inline only if even one batched subagent isn't worth it — and say so.
+## Step 3: Close the phase via `handover`
 
-If you keep any task inline, state in one line which exception applies and why, before proceeding. "It's quick" / "it's just one file" is not an exception — that's the rationalisation this gate exists to stop. The goal is a clean orchestrator context across the whole phase, not minimising any single task's token cost: a subagent re-reads the plan and guardrails, so per-task it often costs *more* — the win is that your context never accumulates that detail and stays cheap for the full phase.
+Once the execution model's overall validation is green, run `ship` (merge the PR, clean up local state), then invoke the `handover` skill and let it run in full — it verifies the phase's exit criteria itself (its Step 2), writes the phase memory entry, and emits the next handover prompt. If its verification finds a red criterion, **stay in this chat and fix it** — never label a red phase complete; that lie corrupts the next chat.
 
-1. **Decompose this phase into its tasks.** Look in the plan for an explicit task list for this phase. If the plan has one, use it verbatim. If it doesn't (the phase is described in prose, or the task list is vague), **draft a task list yourself from the phase's scope and deliverables, then stop and validate with the user** before dispatching any subagent — say something like: "The plan doesn't list explicit tasks for this phase, so I've drafted the following from the scope. Approve, or tell me what to refine." Once you have a list the user accepts, run each task through the delegation gate above, then classify each as independent (can run in parallel) or sequential (depends on another task's output).
+**First handover only (from Step 1):** there is no verification evidence or deviations yet — mark those sections "N/A — phase not started".
 
-2. **Dispatch subagents** (one per task, or one per batch of sub-trivial tasks) — launch independent tasks in parallel; launch sequential tasks only after their dependencies report back. Each subagent prompt must be self-contained: include the plan file path, branch name, relevant guardrails from CLAUDE.md, and a clear definition of done for that task **including the task-level tests the subagent must run and pass before reporting back**.
-
-Each subagent should follow `superpowers:executing-plans` internally. Apply the usual dev-loop conventions from CLAUDE.md (conventional commits, branch off base, PR → base, CodeRabbit, CI green, squash-merge).
-
-**Pick each subagent's model and pass it explicitly when dispatching** — match the model to the task's difficulty (the Task/Agent tool accepts `haiku` / `sonnet` / `opus`): `haiku` for mechanical, fully-specified work (rote edits, boilerplate, formatting, running a known command and reporting); `sonnet` — the default for task subagents — for standard implementation against a clear spec; `opus` only for high-ambiguity or high-stakes tasks (design/architecture calls, gnarly debugging, security-sensitive code). Default to `sonnet`; escalate to `opus` only when ambiguity or blast radius justifies it, drop to `haiku` only when the task is genuinely mechanical. **A cheap wrong answer isn't cheap** — if a smaller model fails and you redo the work on a bigger one, you pay twice, so on a tier boundary pick the higher tier. Keep the orchestrator itself (you) on `sonnet` or `opus` — it runs overall validation (Step 2c) and is the one place not to economise. If newer Claude versions exist, map by tier (cheapest / balanced / most capable), not the literal alias.
-
-### 2b: Receive reports and coordinate
-
-As subagents complete, collect their reports. Each report must include:
-
-- What was implemented
-- Which tests were run and their result (`X/Y passing`, or `lint clean`, etc.)
-- Any deviations from the plan, with reasons
-- Any carry-forward notes for dependent tasks
-
-If a subagent reports a failure or deviation that blocks a dependent task, **stop and resolve it before dispatching downstream subagents**. Do not cascade failures forward.
-
-If a subagent's task-level tests are red, the subagent must fix and re-run before the report is accepted as complete. A report that says "tests failing" is not a completed task.
-
-### 2c: Overall validation testing
-
-Once all subagents have reported back with green task-level results, **run the full integration/validation test suite yourself** (do not delegate this):
-
-- Full test suite (`X/Y passing`)
-- Lint + type-check (whatever the repo uses: `ruff`, `mypy`, `eslint`, `tsc`)
-- Any integration or E2E tests specified in the plan's exit criteria
-
-This is the phase-level gate — individual task tests confirm local correctness; overall validation confirms the tasks integrate correctly. If overall validation is red, diagnose, fix, and re-run before moving to Step 3.
-
-While executing, keep three things close to hand:
-
-- **Exit criteria** for this phase from the plan (tests passing, PR merged, UAT green, whatever the plan states).
-- **Deviations from plan** — aggregate deviations reported by subagents, plus any discovered during overall validation. These go into the handover.
-- **Secrets / credentials** provided inline by the user — mark their origin so the handover can reference them without re-leaking them into git-tracked files.
-
-## Step 3: Verify exit criteria before stopping
-
-Before producing the handover, confirm the current phase actually ended. Apply `superpowers:verification-before-completion`:
-
-- Tests: run the full suite; report pass count (`X/Y passing`), not "tests pass".
-- PR: check merge status (`gh pr view <n> --json state,mergeCommit`). "Merged to `dev`" ≠ "open and approved".
-- UAT / acceptance checklist: if the plan specifies one, confirm each item is ticked.
-- Lint / types: `ruff`, `mypy`, `eslint`, `tsc` — whatever the repo uses.
-
-If any exit criterion fails, **stay in this chat** and fix it. Do not write the handover for the *next* phase while the current one is red. A handover that says "Phase N complete" when it isn't is a lie that corrupts the next chat.
-
-## Step 4: Emit the handover and hand off
-
-Once exit criteria are green, use the `handover` skill to produce and emit the phase handover prompt. The handover skill covers all remaining details:
-
-- Writing phase memory entries (Step 3 of `handover`)
-- Producing the handover prompt template (Step 4 of `handover`)
-- Handing off cleanly (Step 5 of `handover`)
-- Anti-patterns to avoid when handover writing
-
-**Key difference for the first handover (Step 1):** The first handover has no "Verification evidence" or "Deviations" yet — mark sections as "N/A — Phase 1 has not started" or leave blank until the executing chat completes the phase.
-
-**Next phase's handover:** The executing chat will use the `handover` skill to produce the Phase 2 handover once Phase 1 is complete. Do not reference `execute-phased-plan` for subsequent handovers — the `handover` skill is the authoritative tool for all handover writing and anti-pattern guidance.
+Subsequent handovers are produced the same way by each executing chat. `handover` is the authoritative skill for all handover writing and its anti-patterns; this skill only sets the rhythm.
 
 ## Composition with other skills
 
 | Skill | Role |
 |---|---|
 | `superpowers:writing-plans` | Produces the phased plan that this skill then executes. If the plan isn't phased, suggest re-planning with phases before invoking this skill. |
-| `handover` | Authoritative source for writing phase memory entries, producing handover prompts, and handover anti-patterns. This skill delegates all handover writing to `handover`. |
-| `superpowers:executing-plans` | Used *inside* each subagent's prompt — subagents follow this skill to execute their individual task. |
-| `superpowers:subagent-driven-development` | Referenced by Step 2 orchestration model for parallel dispatch patterns. |
-| `superpowers:verification-before-completion` | Enforced at Step 3 — no handover without fresh verification evidence. Also enforced per-subagent: each subagent must pass task-level tests before its report is accepted. |
-| `ship` | The last activity of every phase — merge the PR and clean up local state before invoking the `handover` skill to write phase memory and emit the next handover. |
+| `handover` | Owns everything at the phase boundary: exit-criteria verification, phase memory, the handover prompt and its anti-patterns. Its `references/execution-model.md` is also Step 2's orchestration model. |
+| `ship` | The last activity of every phase — merge the PR and clean up local state before `handover` closes the phase. |
 
 ## When NOT to use this skill
 
 - Single-phase tasks or small changes — just do the work, no handover theatre needed.
 - Plans the user has explicitly said to auto-accept ("execute the whole plan, don't pause") — honour user instructions; they override the skill's default pacing.
 - Experimental / throwaway work where context hygiene doesn't matter.
-
-## Quick invocation phrases the user commonly uses
-
-These all trigger this skill — recognise them and invoke immediately instead of asking for clarification:
-
-- "execute the plan phase by phase"
-- "do one phase then stop"
-- "stop after Phase X"
-- "do not carry on with Phase Y"
-- "write a handover prompt"
-- "give me a prompt for a fresh chat to continue"
-- "write a prompt for a new chat to continue the plan"
-- "pause at the phase boundary"
-- (implicit) user has just finished brainstorming / writing / reviewing a multi-phase plan and says "ok let's execute" — default to emitting the Phase 1 handover first, not executing in the current chat
