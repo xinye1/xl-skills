@@ -1,6 +1,6 @@
 ---
 name: review-focus
-description: Use when handing the user a long document to approve — a spec, plan, ADR, research report, or review findings — and whenever they say "which bits should I focus on?", "point out the high value review points", "so I don't have to read this end to end", "the plan is too complicated for me to read", or "ELI5 the summary". Trigger proactively: any artifact over ~2 screens presented for sign-off should arrive with a reviewer's guide attached, unprompted. The user is the product owner signing off on judgement calls, not a line-editor of the document.
+description: Use when handing the user a long document to approve — a spec, plan, ADR, research report, or review findings — and whenever they say "which bits should I focus on?", "point out the high value review points", "so I don't have to read this end to end", "the plan is too complicated for me to read", or "ELI5 the summary of a long doc under review". Trigger proactively — any artifact over ~2 screens presented for sign-off should arrive with a reviewer's guide attached, unprompted. The user is the product owner signing off on judgement calls, not a line-editor of the document.
 ---
 
 # Review focus — a reviewer's guide for the product owner

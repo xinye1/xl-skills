@@ -10,7 +10,7 @@ The user is a **data scientist with a product and design mindset**: fluent in ML
 ## Calibration — what needs unpacking and what doesn't
 
 - **Assume fluent:** ML concepts (features, overfitting, ensembles, cross-validation), statistics (correlation, significance, distributions), product/UX reasoning, experiment design.
-- **Assume NOT fluent:** infra/ops (containers, migrations, reverse proxies, systemd), networking (tailnets, ports, SSH keys), software-engineering internals (enums, transactions, race conditions), finance mechanics (NAV, PIT data, order lifecycles), and any project-local shorthand ("VR", "box", "pin").
+- **Assume NOT fluent:** infra/ops (containers, migrations, reverse proxies, systemd), networking (tailnets, ports, SSH keys), software-engineering internals (enums, transactions, race conditions), mobile platform mechanics (adb, app signing, permissions), finance mechanics (NAV, PIT data, order lifecycles), and any project-local shorthand ("VR", "box", "pin").
 - Over-explaining the fluent column is as bad as under-explaining the other — it reads condescending and wastes their time.
 
 ## The shape of an ELII answer

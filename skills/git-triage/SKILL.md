@@ -29,7 +29,7 @@ Never `git add -A` a mixed tree. Never bulk-delete a group you haven't diagnosed
 
 ## Step 3 — act, with the plan visible
 
-Present the classification (counts per bucket, the reasoning for anything surprising) before executing deletions; tracked-file commits and gitignore fixes can proceed directly. Special cases:
+State the classification (counts per bucket, the reasoning for anything surprising) before acting on any bucket. Tracked-file commits and gitignore fixes can proceed right after stating it — no pause needed, since both are recoverable — but the classification is shown either way; deletions additionally wait for that to land before executing. Special cases:
 
 - **Bloated status breaks tooling** — when 10k untracked files make git misbehave, ship the `.gitignore` fix *first and standalone* (straight to the working branch if the repo's conventions allow) to restore a usable status, then triage the remainder.
 - **Secrets found in the tree:** confirm ignored, never commit, and flag to the user — especially if they were ever staged.
