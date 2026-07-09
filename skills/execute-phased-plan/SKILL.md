@@ -53,7 +53,7 @@ Two additions when running it from this skill:
 
 ## Step 3: Close the phase via `handover`
 
-Once the execution model's overall validation is green, run `ship` (merge the PR, clean up local state), then invoke the `handover` skill and let it run in full — it verifies the phase's exit criteria itself (its Step 2), writes the phase memory entry, and emits the next handover prompt. If its verification finds a red criterion, **stay in this chat and fix it** — never label a red phase complete; that lie corrupts the next chat.
+Once the execution model's overall validation is green, on a structurally heavy phase offer `nuclear-code-review` (consent-gated) before `ship` opens the merge gate — see `ship`'s own Step 4 for the same offer. Then run `ship` (merge the PR, clean up local state), then invoke the `handover` skill and let it run in full — it verifies the phase's exit criteria itself (its Step 2), writes the phase memory entry, and emits the next handover prompt. If its verification finds a red criterion, **stay in this chat and fix it** — never label a red phase complete; that lie corrupts the next chat.
 
 **First handover only (from Step 1):** there is no verification evidence or deviations yet — mark those sections "N/A — phase not started".
 

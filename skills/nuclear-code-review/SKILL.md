@@ -64,8 +64,9 @@ Under review: branch <branch> against base <base-ref>
 Context you may consult: the whole repo — CLAUDE.md, the modules the
 diff touches, the canonical helpers it should have used. You have NO
 access to the conversation that produced this code — that is deliberate.
-[Round 2 only] Review log: <path to <branch>.review.md> — the round-1
-adjudication record. Contest its rulings only with new evidence.
+[Round 2 only] Review log: <path to .<branch-with-slashes-as-dashes>.review.md
+at repo root> — the round-1 adjudication record. Contest its rulings only
+with new evidence.
 
 Hunt, at minimum:
 - Missed code-judo moves: incidental complexity preserved where a
@@ -128,7 +129,7 @@ Same discipline as `adversarial-review`: every finding to the user in a table �
 
 ### Step 6: Re-review protocol and stop condition
 
-One re-review round after structural revision, maximum — same log protocol as `adversarial-review`: persist `<branch>.review.md` (round-1 findings, verdicts with citations, user rulings), name it in the round-2 dispatch; re-raised findings without new evidence are discarded at triage. If round 2 still comes back REJECT, the disagreement is architectural — take it to the user (or back to `grill-into-design` if the design itself is in question), don't grind subagents into agreement.
+One re-review round after structural revision, maximum — same log protocol as `adversarial-review`: persist `.<branch-with-slashes-as-dashes>.review.md` at repo root (round-1 findings, verdicts with citations, user rulings), name it in the round-2 dispatch; re-raised findings without new evidence are discarded at triage. If round 2 still comes back REJECT, the disagreement is architectural — take it to the user (or back to `grill-into-design` if the design itself is in question), don't grind subagents into agreement.
 
 ## Anti-patterns
 
@@ -148,7 +149,7 @@ One re-review round after structural revision, maximum — same log protocol as 
 
 | Skill | Role |
 |---|---|
-| `ship` | Primary upstream — the gate point. Offer this (consent-gated) before the PR/merge step on structurally heavy diffs; findings resolve before merge. |
+| `ship` | Primary upstream — the gate point. Offer this (consent-gated) before the merge gate opens on structurally heavy diffs; findings resolve before merge. |
 | `execute-phased-plan` | Secondary upstream — gate a phase's implementation at the phase boundary, before the handover declares it done. |
 | `adversarial-review` | The plan-side mirror: same cold-dispatch machinery, same triage discipline. Plans gate before execution; this gates before merge. |
 | `/code-review`, `coderabbit` | Orthogonal correctness surfaces — run alongside, never replaced by this. |
