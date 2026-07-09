@@ -1,6 +1,6 @@
 ---
 name: adversarial-review
-description: Use when a plan or spec is drafted and needs independent review before approval or execution, countering the authoring session's commitment bias. Triggers on "adversarial review", "adversary review", "independent review of this plan/spec", "second opinion on the spec", "red-team this plan", "get fresh eyes on this", "stress-test this spec" — and proactively at plan-complete or spec-complete boundaries before the user approves. For plans and specs (design docs, implementation plans, ADR sets), not code diffs — code goes to the code-review skills.
+description: Use when a plan or spec is drafted and needs independent review before approval or execution, countering the authoring session's commitment bias. Triggers on "adversarial review", "adversary review", "independent review of this plan/spec", "second opinion on the spec", "red-team this plan", "get fresh eyes on this", "stress-test this spec" — and proactively at plan-complete or spec-complete boundaries before the user approves. For plans and specs (design docs, implementation plans, ADR sets), not code diffs — code correctness goes to the code-review skills, code structure to nuclear-code-review.
 ---
 
 # Adversarial-Review — independent intra-session review of plans and specs
@@ -127,11 +127,12 @@ If the second review still comes back REJECT, the disagreement is design-level �
 | `superpowers:writing-plans` | Second upstream — review the implementation plan before execution starts. |
 | `execute-phased-plan` / `handover` | Gate at phase boundaries: review the next phase's plan before dispatching a fresh chat on it. |
 | `superpowers:receiving-code-review` | The receiving discipline for Step 4 — verify before agreeing or rebutting. |
-| `/code-review`, `coderabbit` | The code-side counterparts. Plans and specs come here; diffs go there. |
+| `/code-review`, `coderabbit` | The code-side correctness counterparts. Plans and specs come here; diffs go there. |
+| `nuclear-code-review` | The code-side *structural* mirror — same cold-dispatch machinery and triage discipline, applied to diffs before merge instead of plans before execution. |
 
 ## When NOT to use
 
-- **Code diffs** — the code-review skills own that surface.
+- **Code diffs** — the code-review skills own correctness; `nuclear-code-review` owns the structural gate.
 - **Trivial plans** — a short plan the user will fully read themselves; the dispatch costs more than the risk.
 - **Pure exploration docs** — no downstream work gated on them, nothing for an adversary to gate.
 - **Mid-grill** — during `grill-into-design` the user *is* the adversarial reviewer; this skill fires once the artifact exists.

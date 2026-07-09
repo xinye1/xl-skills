@@ -53,7 +53,7 @@ Two additions when running it from this skill:
 
 ## Step 3: Close the phase via `handover`
 
-Once the execution model's overall validation is green, run `ship` (merge the PR, clean up local state), then invoke the `handover` skill and let it run in full — it verifies the phase's exit criteria itself (its Step 2), writes the phase memory entry, and emits the next handover prompt. If its verification finds a red criterion, **stay in this chat and fix it** — never label a red phase complete; that lie corrupts the next chat.
+Once the execution model's overall validation is green, on a structurally heavy phase offer `nuclear-code-review` (consent-gated) before `ship` opens the merge gate — see `ship`'s own Step 4 for the same offer. Then run `ship` (merge the PR, clean up local state), then invoke the `handover` skill and let it run in full — it verifies the phase's exit criteria itself (its Step 2), writes the phase memory entry, and emits the next handover prompt. If its verification finds a red criterion, **stay in this chat and fix it** — never label a red phase complete; that lie corrupts the next chat.
 
 **First handover only (from Step 1):** there is no verification evidence or deviations yet — mark those sections "N/A — phase not started".
 
@@ -66,6 +66,7 @@ Subsequent handovers are produced the same way by each executing chat. `handover
 | `superpowers:writing-plans` | Produces the phased plan that this skill then executes. If the plan isn't phased, suggest re-planning with phases before invoking this skill. |
 | `handover` | Owns everything at the phase boundary: exit-criteria verification, phase memory, the handover prompt and its anti-patterns. Its `references/execution-model.md` is also Step 2's orchestration model. |
 | `ship` | The last activity of every phase — merge the PR and clean up local state before `handover` closes the phase. |
+| `nuclear-code-review` | Optional gate for structurally heavy phases: offer it (consent-gated) before `ship` merges, so accepted restructurings land inside the phase instead of leaking into the next one. |
 
 ## When NOT to use this skill
 
