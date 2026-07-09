@@ -66,6 +66,7 @@ Subsequent handovers are produced the same way by each executing chat. `handover
 | `superpowers:writing-plans` | Produces the phased plan that this skill then executes. If the plan isn't phased, suggest re-planning with phases before invoking this skill. |
 | `handover` | Owns everything at the phase boundary: exit-criteria verification, phase memory, the handover prompt and its anti-patterns. Its `references/execution-model.md` is also Step 2's orchestration model. |
 | `ship` | The last activity of every phase — merge the PR and clean up local state before `handover` closes the phase. |
+| `nuclear-code-review` | Optional gate for structurally heavy phases: offer it (consent-gated) before `ship` merges, so accepted restructurings land inside the phase instead of leaking into the next one. |
 
 ## When NOT to use this skill
 

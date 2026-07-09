@@ -144,6 +144,8 @@ grep -REn 'on:|push:|pull_request:|types:|synchronize|ready_for_review|merge_gro
 
 Run **one** primary reviewer per change set — stacking same-model reviewers adds no rigor (correlated verdicts, not independent ones). Independence requires a different inference stack or deterministic tools, not a second same-model pass.
 
+**Optional structural gate:** on structurally heavy diffs (new abstractions, cross-module restructuring, a file ballooning), *offer* `nuclear-code-review` at this step — consent-gated, never auto-dispatched. It is not a second correctness reviewer, so the one-primary-reviewer rule is untouched: it reviews an orthogonal surface (maintainability, abstraction quality, missed simplifications) that CodeRabbit's correctness pass doesn't gate. Run it before the merge gate opens, so accepted restructurings land as part of this change set rather than as post-merge debt.
+
 Dispatch with the **diff under review** (the local diff pre-push, or `gh pr diff <pr>` once a PR exists — *not* the working tree once pushed; pass the PR number when it exists) and require a structured verdict: `APPROVE` or `REQUEST_CHANGES` + issue list. When a PR exists, also have the reviewer leave inline comments via `gh pr review --comment`.
 
 **Consuming the reviewer's output — apply `superpowers:receiving-code-review`:**
