@@ -1,6 +1,6 @@
 ---
 name: boil-the-ocean
-description: Implementation completeness discipline — do the whole thing, not just the plan to build it. Use whenever doing non-trivial implementation work (features, bug fixes, refactors, config changes) to push past "good enough" toward "holy shit, that's done." Triggers on starting any non-trivial implementation; before claiming a task is complete; when tempted to "table this for later" / present a workaround / leave a dangling thread / skip tests / skip docs when the permanent solve is within reach. Use even if the user hasn't explicitly asked — implementation tasks default to this discipline. Completeness is bounded by the asked-for scope, not unbounded polish. Broader than `superpowers:test-driven-development` (covers tests *plus* docs and loose ends) and stronger than `superpowers:verification-before-completion` (drives implementation toward complete, not just verifies what's already there).
+description: Use when starting any non-trivial implementation work (features, bug fixes, refactors, config changes), before claiming a task complete, and at the moment of temptation to "table this for later", present a workaround, leave a TODO or dangling thread, or skip tests or docs when the permanent solve is within reach. Applies by default — the user doesn't need to ask; completeness stays bounded by the asked-for scope. Broader than superpowers:test-driven-development, stronger than superpowers:verification-before-completion.
 ---
 
 # Boil the ocean — implementation completeness

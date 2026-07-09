@@ -1,13 +1,11 @@
 ---
 name: grill-into-design
-description: Use when starting a non-trivial design decision before code lands — feature design, architecture choices, spec'ing out a system. Triggers on "design a feature", "design X", "brainstorm X", "let's brainstorm", "spec out Y", "write a spec for Z", "plan a feature", "grill me on this", "stress-test this idea", "interrogate me on this plan", "let's figure out X together", "what should we build for Y" — or any signal that a non-trivial design decision is imminent and the user wants the tree walked rigorously before code. Prefer over `superpowers:brainstorming` when both could fire. The skill enforces a hard gate (no code, scaffolding, or implementation skills until spec approved) and terminates in a spec doc handing off to `superpowers:writing-plans`.
+description: Use when starting a non-trivial design decision before any code lands — feature design, architecture choices, spec'ing out a system. Triggers on "design a feature", "design X", "brainstorm X", "let's brainstorm", "spec out Y", "write a spec for Z", "plan a feature", "grill me on this", "stress-test this idea", "interrogate me on this plan", "let's figure out X together", "what should we build for Y", or "how should I approach this" on a design problem. Prefer over superpowers:brainstorming when both could fire. Not for single-step tasks, bug fixes with a known root cause, or pure exploration with no intent to build.
 ---
 
 # Grill-Into-Design — interrogate then specify
 
-This skill exists for one job: take an under-defined design idea and produce a spec that survives implementation. The mechanism is a structured grilling — you ask the user questions, but every question carries your own draft answer, so the user reviews instead of authors. The output is a real design document (not a chat transcript), and the handoff is to `superpowers:writing-plans` for the implementation plan.
-
-This is the user's own hybrid of two upstream skills: `superpowers:brainstorming` (which has the right structure — hard gate, spec-doc terminus, visual companion) and Matt Pocock's `grill-with-docs` (which has the right tactics — recommended-answer pattern, branch enumeration, inline glossary, ADR-on-3-criteria). Pocock's "9 things people get wrong with /grill-*" post supplies the operational hygiene (token budget, prototype escape hatch, write spec before compacting).
+This skill exists for one job: take an under-defined design idea and produce a spec that survives implementation. The mechanism is a structured grilling — you ask the user questions, but every question carries your own draft answer, so the user reviews instead of authors. The output is a real design document (not a chat transcript), and the handoff is to `superpowers:writing-plans` for the implementation plan. (Origins of the tactics: see Lineage at the end.)
 
 **Who this skill is for:** the user when they're product-fluent on intent but want the design tree walked rigorously before any code lands. Especially right when the user is supervising AI-authored code across multiple languages and cannot afford the agent to drift on under-specified intent.
 
@@ -48,7 +46,7 @@ Before asking anything, do this:
 
 - Read the user's request literally. If the scope describes multiple independent subsystems ("build a platform with chat, billing, analytics, ML serving"), flag this immediately — do not refine details of a project that needs decomposition first. Offer to decompose into sub-projects; brainstorm only the first one through the rest of this flow.
 - Pull project context (skip whatever isn't present): if it's a git repo, recent commits (`git log --oneline -20`); any `CLAUDE.md` and project memory (`MEMORY.md`); top-level `README.md`; the active specs directory (commonly `docs/superpowers/specs/` or `docs/specs/`). On a true greenfield without a repo, ask the user one orienting question instead.
-- Identify the existing spec depth standard. If the project anchors on a specific spec as the reference (e.g. trading-platform-v2's "Spec 7a depth standard"), respect that depth. Don't bring brainstorming-skill brevity into a project that runs 80K-line specs; don't bring spec-7a verbosity into a hobby project.
+- Identify the existing spec depth standard. If the project anchors on a specific spec as its reference depth, respect it. Don't bring brainstorming-skill brevity into a project that runs 80K-line specs; don't bring reference-spec verbosity into a hobby project.
 - Identify the existing spec file location and naming convention (e.g. `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`). Adopt it. Don't invent a new location.
 
 ### Step 2: Open the glossary
@@ -181,7 +179,9 @@ Cap ADR body at ~200 words. ADRs are about *why*, not *how* — the how lives in
 
 ### Step 11: User review of the written spec
 
-Stop and say:
+**Adversarial gate first (specs that gate real downstream work):** offer `adversarial-review` — a cold, independent frontier-model review of the spec and its ADRs — before asking the user to review. One line, consent-gated; skip for trivial specs. Run it before the user reads the spec so their review sees the strengthened version.
+
+Then stop and say:
 
 > "Spec written and committed to `<path>`. Glossary updated (<N> new terms). <N> ADRs written. Please review and let me know if you want changes before we hand off to writing-plans."
 
@@ -189,7 +189,7 @@ Wait for response. If they request changes, make them and re-run Step 9. Only pr
 
 ### Step 12: Handoff to `superpowers:writing-plans`
 
-Invoke `superpowers:writing-plans` to produce the implementation plan. Do not invoke any other skill (not `to-prd`, not implementation skills, not frontend-design). The plan, not this skill, gates implementation.
+Invoke `superpowers:writing-plans` to produce the implementation plan. Do not invoke implementation or design-execution skills directly from here. The plan, not this skill, gates implementation.
 
 ## Recommended-answer pattern (in more detail)
 
@@ -241,13 +241,13 @@ Per Pocock: this is the single biggest preventive measure against agent-drift ac
 | Writing the spec after compacting context | Spec quality degrades with context loss. Always: spec first, compact second. |
 | Endless grilling without ever spec-ing | *"If you're just planning and planning without building, you're over-grilling"* (Pocock). Once the major decisions are made, ship the spec. |
 | Outputting a chat-transcript summary instead of a spec doc | The chat is throwaway; the spec is durable. The user can't grep a chat. Write to the file. |
-| Handing off to `to-prd` instead of `writing-plans` | Different output formats, different downstream consumers. This skill's terminus is `writing-plans`. |
 
 ## Composition with other skills
 
 | Skill | Role |
 |---|---|
 | `superpowers:writing-plans` | The terminus. After the spec is approved, this skill invokes writing-plans to produce the implementation plan. |
+| `adversarial-review` | Step 11's optional gate — cold independent review of the spec + ADRs before the user's own review. |
 | `superpowers:brainstorming` | The upstream this skill replaces for projects that adopt it. If both could fire, prefer this one — it has all of brainstorming's structure plus the grill tactics. |
 | `superpowers:test-driven-development` | Downstream of writing-plans — the implementation skill enforces TDD on each task. This skill's spec should specify the audit surface so TDD knows what "done" means. |
 | `handover` | Invoked at Step 5 when token budget is near ~120K and the design isn't complete. Pause, write what you have, hand off to a fresh chat. |
@@ -261,32 +261,8 @@ Per Pocock: this is the single biggest preventive measure against agent-drift ac
 - **Pure exploration** — "what could we do about X" with no commitment to building anything. A 2-3 sentence answer with a tradeoff is enough; don't run a 40-question grill on a hypothetical.
 - **The user explicitly says they want a fast answer** — respect that. Confirm: "fast answer, or proper grill?" If fast, give the fast answer and skip this skill.
 - **The user has explicitly asked for `superpowers:brainstorming`** — honour their explicit choice.
-- **Greenfield design that's already specced** — if the project already has its design specs (e.g. trading-platform-v2's 16-spec corpus), and the work is just executing them, go straight to `superpowers:writing-plans` instead of grilling on a fait accompli.
-
-## Quick invocation phrases
-
-These trigger this skill — recognise and invoke without asking for clarification (but still do Step 1 to load context):
-
-- "design a feature"
-- "design something"
-- "design X" (where X is a feature/module/component)
-- "brainstorm X"
-- "let's brainstorm"
-- "spec out Y"
-- "write a spec for Z"
-- "plan a feature"
-- "plan out X"
-- "grill me on this"
-- "grill me about X"
-- "stress-test this idea"
-- "stress-test this design"
-- "interrogate me on this plan"
-- "let's figure out X together"
-- "what should we build for Y"
-- "I want to design X"
-- "help me design X"
-- (implicit) user describes a non-trivial design problem and asks "where should I start" or "how should I approach this"
+- **Greenfield design that's already specced** — if the project already has its design specs and the work is just executing them, go straight to `superpowers:writing-plans` instead of grilling on a fait accompli.
 
 ## Lineage
 
-Hybrid of `superpowers:brainstorming` (hard-gate, section-by-section presentation, spec-doc terminus, `writing-plans` handoff) and Matt Pocock's grill skills (recommended-answer pattern, branch-walking, inline glossary, ADR-on-3-criteria gate, 120K-token budget, `[needs-prototype]` escape hatch). Neither alone fits high-stakes greenfield design where the reviewer is product-fluent but can't audit the diff line by line.
+Hybrid of `superpowers:brainstorming` (hard-gate, section-by-section presentation, spec-doc terminus, `writing-plans` handoff) and Matt Pocock's grill skills (recommended-answer pattern, branch-walking, inline glossary, ADR-on-3-criteria gate); Pocock's "9 things people get wrong with /grill-*" post supplies the operational hygiene (120K-token budget, `[needs-prototype]` escape hatch, write-spec-before-compacting). Neither alone fits high-stakes greenfield design where the reviewer is product-fluent but can't audit the diff line by line.

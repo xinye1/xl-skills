@@ -1,6 +1,6 @@
 ---
 name: handover
-description: Produce a self-contained handover prompt the user can paste into a fresh chat to continue a multi-phase plan without drift. Use when the user says "handover", "write a handover", "carry on in a new chat", "continue in a fresh chat", "start the next phase in a new chat", "give me a prompt for a new chat", or signals context is filling up. Also use proactively at a phase boundary in a long plan, even unprompted — chat-level pacing prevents context rot. Verifies phase exit criteria (or captures in-progress state), writes a phase memory entry on completion, and emits a prompt instructing the next chat to orchestrate subagents per task and validate itself.
+description: Use when a multi-phase effort needs to continue in a fresh chat — the user says "handover", "write a handover", "carry on in a new chat", "continue in a fresh chat", "start the next phase in a new chat", "give me a prompt for a new chat", "hop to a fresh chat", or signals context is filling up. Also use proactively at a phase boundary in a long plan, even unprompted. Run summarise-session first when closing a phase. Not for coordinating a parallel live session — that's cross-session-brief.
 ---
 
 # Handover — hop to a fresh chat mid-plan without drift
@@ -60,14 +60,15 @@ Only do this when the phase actually completed. The memory captures the non-obvi
 
 ```markdown
 ---
-name: Phase <N> — <title>
+name: phase-<N>-<short-slug>
 description: Outcome, key decisions, and deviations for Phase <N> of <project name>
-type: project
+metadata:
+  type: project
 ---
 
 ## Outcome
 
-- PR #<num>, squash-merged to `<base>` on <YYYY-MM-DD>. Commit: `<sha>`.
+- PR #<num>, merged to `<base>` on <YYYY-MM-DD> (regular merge commit — never squash). Commit: `<sha>`.
 - Tests: `<X/Y passing>`, lint clean, types clean.
 
 ## Key technical decisions
@@ -92,6 +93,8 @@ Why memory now, not later: the details fade fast. The next chat inherits the han
 Use the template below verbatim. **Emit it as a single fenced code block** (triple-backticks or `~~~`) so the user can copy the literal markdown source, markup and all, in one action. Do not render the template directly into the chat as headers, bullets, and checkboxes — that destroys the markup the next chat needs. The reader should see a code block they click-to-copy, not a rendered document. **Do not "tighten up" or summarise the template** — the structure is what makes the next chat productive; collapsing sections loses load-bearing context, and past sessions that trimmed the template always paid for it.
 
 Fill every section. For mid-phase handovers, the "Current status" lists what's done vs. outstanding and the next chat's job is to finish the phase, not start the next. For end-of-phase, the next chat starts Phase N+1.
+
+**Inline the execution model.** The template's `## Execution model` section is a REQUIRED slot: fill it with the full contents of `references/execution-model.md` (in this skill's folder), verbatim. That file is the single source of truth for the delegation gate, per-task subagent dispatch, model-tier selection, and orchestrator-run validation — do not paraphrase or trim it, and do not emit the prompt with the slot unfilled. The emitted prompt must be self-contained: the receiving chat may not load this skill, so the model travels inside the prompt.
 
 **Choose the recommended orchestrator model** (`sonnet`, `opus`, or `fable`) and replace *every* `<recommended orchestrator model>` placeholder in the template's header block with it — the H1 title suffix, the ⚠️ callout, and the three occurrences in the "Before you start" check. Don't leave any unfilled: a raw placeholder in the self-check tells the receiving agent to compare itself against the literal string, which breaks the check. **Leave `<your current model>` verbatim** — that's the one placeholder the receiving agent fills at runtime from its own environment, not you. The orchestrator decomposes tasks, coordinates subagents, and runs integration validation, so it needs real reasoning capacity:
 
@@ -125,7 +128,7 @@ Do not begin decomposition or dispatch until the user has switched or explicitly
 - Phase 0 — <one line>
 - Phase 1 — <one line>
 - ...
-- Phase <N> — <one line>, squash-merged in PR #<num> (commit `<sha>`)
+- Phase <N> — <one line>, merged in PR #<num> (commit `<sha>`)
 
 **In-progress (mid-phase handovers only — omit section otherwise):**
 - Phase <N>, tasks done: <task A>, <task B>
@@ -154,30 +157,13 @@ Phase-specific plan (if one exists): `<path>`
 
 **Exit criteria** (how you know this phase is done):
 - [ ] <test command> — all green
-- [ ] PR opened, reviewed, squash-merged to `<base>`
+- [ ] PR opened, reviewed, merged to `<base>` (regular merge commit — never squash)
 - [ ] UAT section for this phase filled in `<path>`
 - [ ] <any plan-specific acceptance gate>
 
 ## Execution model — subagent orchestration
 
-**Default: every task in this phase is delegated to a subagent. Inline execution is the exception and must be named.** Before dispatching, run each task through this gate — "can this go to a subagent?" The answer is yes unless it hits one of these exceptions:
-
-- **Overall / integration validation** — the orchestrator's own job (step 4 below). Never delegate it.
-- **Live user decision or interaction** — can't be packaged into a self-contained subagent prompt; keep it with the orchestrator.
-- **Pure coordination** — merging subagent results, deciding task sequencing. Inherently the orchestrator's.
-- **Sub-trivial tasks** — individually too small to justify a subagent's spin-up cost. Do not run them inline one-by-one; **batch them into a single subagent** (batch only tasks at the same dependency position, so a batch never straddles a sequential boundary). Fall back to inline only if even one batched subagent isn't worth it — and say so.
-
-If you keep any task inline, state in one line which exception applies and why, before proceeding. "It's quick" / "it's just one file" is not an exception — that's the rationalisation this gate exists to stop. The goal is a clean orchestrator context across the whole phase, not minimising any single task's token cost: a subagent re-reads the plan and guardrails, so per-task it often costs *more* — the win is that the orchestrator never accumulates that detail and stays cheap for the full phase.
-
-Then orchestrate:
-
-1. **Decompose this phase into its tasks.** Look in the plan for an explicit task list for this phase. If the plan has one, use it verbatim. If it doesn't (the phase is described in prose, or the task list is vague), **draft a task list yourself from the phase's scope and deliverables, then stop and validate with the user** before dispatching any subagent — say something like: "The plan doesn't list explicit tasks for this phase, so I've drafted the following from the scope. Approve, or tell me what to refine." Once you have a list the user accepts, run each task through the delegation gate above, then classify each as independent (can run in parallel) or sequential (depends on another task's output).
-2. **Dispatch one subagent per task** (or one per batch of sub-trivial tasks). Launch independent tasks in parallel; launch sequential tasks only after their dependencies report back. Each subagent prompt must be self-contained: plan file path, branch name, guardrails below, and a clear definition of done that **includes the task-level tests the subagent must run and pass before reporting back**. Each subagent should follow `superpowers:executing-plans` internally.
-   - **Pick each subagent's model and pass it explicitly when dispatching** — match the model to the task's difficulty. The Task/Agent tool accepts `haiku` / `sonnet` / `opus` / `fable`; pricing scales roughly **1 : 3 : 5 : 10** across those tiers, so every tier must earn its premium. `haiku` for mechanical, fully-specified work (rote edits, boilerplate, formatting, running a known command and reporting); `sonnet` — the default for task subagents — for standard implementation against a clear spec; `opus` for high-ambiguity or high-stakes tasks (design/architecture calls, gnarly debugging, security-sensitive code); `fable` — the frontier tier — only for the rare task that is itself frontier-hard: novel architecture under deep ambiguity, a long-horizon autonomous sub-run, or debugging that has already defeated `opus`. Default to `sonnet`; escalate one tier only when ambiguity or blast radius justifies it, drop to `haiku` only when the task is genuinely mechanical. **A cheap wrong answer isn't cheap** — if a smaller model fails and you redo the work on a bigger one, you pay twice, so on a tier boundary pick the higher tier. The converse also holds: **a frontier model on rote work buys nothing** — the boundary rule resolves genuine boundaries, it is not a licence to default upward. Keep the orchestrator itself on the model this handover's header recommends (never below `sonnet`) — it runs overall validation (step 4) and is the one place not to economise. If newer Claude versions exist (or a tier isn't available in your environment), map by tier (cheapest / balanced / advanced / frontier), not the literal alias.
-3. **Receive reports and coordinate.** Each subagent reports: what was implemented, which tests passed (`X/Y passing`, lint clean, etc.), any deviations with reasons, and carry-forward notes for dependent tasks. If a subagent's tests are red, it must fix and re-run before the report is accepted — "tests failing" is not a completed task. If a failure blocks a dependent task, stop and resolve before dispatching downstream subagents; do not cascade failures forward.
-4. **Run overall validation yourself** (do not delegate). Once all subagents have reported green task-level results, you — the orchestrating agent — run the full integration/validation suite: full tests, lint, type-check, and any E2E/integration tests the plan's exit criteria specify. Task-level tests confirm local correctness; overall validation confirms the pieces integrate. If overall validation is red, diagnose, fix, and re-run before moving on.
-
-Why this split: subagents keep each task's context tight; the orchestrator keeps a coherent view of the phase as a whole and catches integration-level failures that no single task-subagent would see.
+<!-- REQUIRED SLOT: replace this comment with the FULL contents of references/execution-model.md, verbatim. Never emit the handover with this slot unfilled, paraphrased, or trimmed — the receiving chat gets only what is pasted here. -->
 
 ## Branch + conventions
 
@@ -250,18 +236,3 @@ Do not bury the prompt under a chatty summary; the user needs to copy it cleanly
 - Experimental / throwaway sessions where context hygiene doesn't matter.
 
 **Note:** an explicit "handover" request from the user should always be respected, regardless of how this chat was started (including handover-launched chats). The user has reasons you can't see — context bloat, a revised plan, a fresh idea that deserves its own chat. Don't second-guess an explicit hop.
-
-## Quick invocation phrases
-
-These trigger this skill — recognise and invoke without asking for clarification (but still do Step 1 to lock down the inputs):
-
-- "handover"
-- "write a handover"
-- "write a handover prompt"
-- "carry on in a new chat"
-- "continue in a fresh chat"
-- "start the next phase in a new chat"
-- "give me a prompt for a new chat"
-- "write me a prompt for a fresh chat to continue the plan"
-- "hop to a fresh chat"
-- (implicit) user notes the context is getting full mid-plan and asks what to do next — suggest a handover and, if they agree, run this skill
