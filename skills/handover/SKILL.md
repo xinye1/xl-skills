@@ -213,7 +213,7 @@ Goals, reasoning, and constraints — no numbered procedure. The "why" in the Go
 
 > **⚠️ Set your model to `fable` before continuing.** If this chat is on a weaker model, switch with `/model` now.
 
-**As your very first action:** check the model you are running as. This handover's prompt style assumes `fable` — a weaker orchestrator needs a prescriptive handover instead, so if you are not on `fable`, stop and ask the user to switch with `/model` (or to explicitly confirm continuing on `<your current model>`) before doing any work.
+**As your very first action:** check the model you are running as. This handover's prompt style assumes `fable` — a weaker orchestrator needs a prescriptive handover instead, so if you are not on `fable`, stop and ask the user to switch with `/model` before doing any work. If the user declines to switch, do not proceed on this prompt: ask them to have it regenerated in the prescriptive style for `<your current model>` (the authoring chat's `handover` skill, Template A).
 
 ## Goal
 
@@ -240,11 +240,14 @@ Goals, reasoning, and constraints — no numbered procedure. The "why" in the Go
 - Guardrails (from `CLAUDE.md` — enforce in reviews):
   - <guardrail 1, verbatim>
   - <guardrail 2>
-- <!-- REQUIRED SLOT: replace this comment with the FULL contents of references/execution-model-fable.md, verbatim. Never emit the handover with this slot unfilled, paraphrased, or swapped for the prescriptive execution model. -->
+
+## How you work
+
+<!-- REQUIRED SLOT: replace this comment with the FULL contents of references/execution-model-fable.md, verbatim. Never emit the handover with this slot unfilled, paraphrased, or swapped for the prescriptive execution model. -->
 
 ## At phase end
 
-Once the exit criteria hold: run `summarise-session` (the reflective pass that decides what to persist), write a phase memory entry to `<project-memory-dir>/phase_<target-phase>_<short-title>.md` with a pointer line in `MEMORY.md`, then produce the next handover with the `handover` skill.
+Once every box in **Done means** is ticked: run `summarise-session` (the reflective pass that decides what to persist), write a phase memory entry to `<project-memory-dir>/phase_<target-phase>_<short-title>.md` with a pointer line in `MEMORY.md`, then produce the next handover with the `handover` skill.
 ~~~
 
 ## Step 5: Hand off
@@ -266,7 +269,7 @@ Do not bury the prompt under a chatty summary; the user needs to copy it cleanly
 | Sending `fable` the prescriptive template (A) | Fable follows flawed steps faithfully and plans better without them — the crutches get in the way. Fable gets goal + why + context + constraints (Template B) and owns its own orchestration plan. |
 | Sending `sonnet`/`opus` the goal-directed template (B) | The prescriptive scaffold is what keeps a mid-tier orchestrator's delegation gate and validation steps on rails; goals-only prompting lets them drift. Prompt style follows the model, both directions. |
 | Naming no execution model | Without the subagent-orchestration block, the next chat defaults to executing inline and burns its context on task-level detail instead of integration-level coordination. |
-| Executing a task inline without naming the exception | The whole point of hopping was a clean orchestrator context; an inline task reloads task-level detail into it and re-bloats the very context the handover was meant to keep tight. Default to a subagent; if you go inline, name which gate exception applies. |
+| Executing a task inline without naming the exception | The whole point of hopping was a clean orchestrator context; an inline task reloads task-level detail into it and re-bloats the very context the handover was meant to keep tight. Default to a subagent; if you go inline, state why in one line (Template A's execution model names the allowed exceptions). |
 | Continuing "just one more task" after writing the handover | Defeats the point of hopping. Emit the handover and stop. |
 | Emitting the handover without a lead-in the user can see | The prompt is the payload; the lead-in tells the user what to do with it. A handover with no framing often gets missed or misused. |
 
