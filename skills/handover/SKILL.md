@@ -213,7 +213,7 @@ Goals, reasoning, and constraints — no numbered procedure. The "why" in the Go
 
 > **⚠️ Set your model to `fable` before continuing.** If this chat is on a weaker model, switch with `/model` now.
 
-**As your very first action:** check the model you are running as. This handover's prompt style assumes `fable` — a weaker orchestrator needs a prescriptive handover instead, so if you are not on `fable`, stop and ask the user to switch with `/model` before doing any work. If the user declines to switch, do not proceed on this prompt: ask them to have it regenerated in the prescriptive style for `<your current model>` (the authoring chat's `handover` skill, Template A).
+**As your very first action:** check the model you are running as. This handover's prompt style assumes `fable` — a weaker orchestrator needs a prescriptive handover instead, so if you are not on `fable`, stop and ask the user to switch with `/model` before doing any work. If the user declines to switch, do not proceed on this prompt: on `sonnet` or `opus`, ask them to have it regenerated in the prescriptive style for that model (the authoring chat's `handover` skill, Template A); on `haiku` or an unrecognised model, there is no valid template — ask them to switch to `sonnet`, `opus`, or `fable`, and never orchestrate on `haiku`.
 
 ## Goal
 
