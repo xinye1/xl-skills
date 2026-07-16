@@ -41,7 +41,7 @@ In all other cases, emit the handover and stop. If you're unsure, emit the hando
 
 ## Step 2: Execute the single phase via subagent orchestration
 
-Unless the user chose **Manual** mode in Step 0 (they drive, you assist inline — the delegation gate doesn't apply), execute the phase by the shared execution model: **read `../handover/references/execution-model.md`** (sibling skill folder; the same text every handover prompt embeds — if the file isn't present because this skill was packaged standalone, use the execution model embedded in the incoming handover prompt) and apply it end to end. It is the single source of truth for the delegation gate, task decomposition with user validation, per-task subagent dispatch with explicit model-tier choice, report handling, and the orchestrator-run overall validation that gates the phase.
+Unless the user chose **Manual** mode in Step 0 (they drive, you assist inline — the delegation gate doesn't apply), execute the phase by the shared execution model: **read `../handover/references/execution-model.md`** (sibling skill folder; the same text every handover prompt embeds — if the file isn't present because this skill was packaged standalone, use the execution model embedded in the incoming handover prompt) and apply it end to end. It is the single source of truth for the delegation gate, task decomposition with user validation, per-task subagent dispatch with explicit model-tier choice, report handling, and the orchestrator-run overall validation that gates the phase. **Exception: if this chat is running on `fable`, read `../handover/references/execution-model-fable.md` instead** — the constraints-and-intent variant; the step-by-step procedure is a crutch that gets in Fable's way.
 
 Two additions when running it from this skill:
 
@@ -64,7 +64,7 @@ Subsequent handovers are produced the same way by each executing chat. `handover
 | Skill | Role |
 |---|---|
 | `superpowers:writing-plans` | Produces the phased plan that this skill then executes. If the plan isn't phased, suggest re-planning with phases before invoking this skill. |
-| `handover` | Owns everything at the phase boundary: exit-criteria verification, phase memory, the handover prompt and its anti-patterns. Its `references/execution-model.md` is also Step 2's orchestration model. |
+| `handover` | Owns everything at the phase boundary: exit-criteria verification, phase memory, the handover prompt and its anti-patterns. Its execution-model references (`execution-model.md`, or `execution-model-fable.md` on a fable chat) are also Step 2's orchestration model. |
 | `ship` | The last activity of every phase — merge the PR and clean up local state before `handover` closes the phase. |
 | `nuclear-code-review` | Optional gate for structurally heavy phases: offer it (consent-gated) before `ship` merges, so accepted restructurings land inside the phase instead of leaking into the next one. |
 

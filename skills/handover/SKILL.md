@@ -88,24 +88,31 @@ metadata:
 
 Why memory now, not later: the details fade fast. The next chat inherits the handover, but the chat *after that* might be a week later — the memory is what lets future conversations reconstruct what actually happened.
 
-## Step 4: Write the handover prompt
+## Step 4: Choose the orchestrator model, then write the matching handover prompt
 
-Use the template below verbatim. **Emit it as a single fenced code block** (triple-backticks or `~~~`) so the user can copy the literal markdown source, markup and all, in one action. Do not render the template directly into the chat as headers, bullets, and checkboxes — that destroys the markup the next chat needs. The reader should see a code block they click-to-copy, not a rendered document. **Do not "tighten up" or summarise the template** — the structure is what makes the next chat productive; collapsing sections loses load-bearing context, and past sessions that trimmed the template always paid for it.
-
-Fill every section. For mid-phase handovers, the "Current status" lists what's done vs. outstanding and the next chat's job is to finish the phase, not start the next. For end-of-phase, the next chat starts Phase N+1.
-
-**Inline the execution model.** The template's `## Execution model` section is a REQUIRED slot: fill it with the full contents of `references/execution-model.md` (in this skill's folder), verbatim. That file is the single source of truth for the delegation gate, per-task subagent dispatch, model-tier selection, and orchestrator-run validation — do not paraphrase or trim it, and do not emit the prompt with the slot unfilled. The emitted prompt must be self-contained: the receiving chat may not load this skill, so the model travels inside the prompt.
-
-**Choose the recommended orchestrator model** (`sonnet`, `opus`, or `fable`) and replace *every* `<recommended orchestrator model>` placeholder in the template's header block with it — the H1 title suffix, the ⚠️ callout, and the three occurrences in the "Before you start" check. Don't leave any unfilled: a raw placeholder in the self-check tells the receiving agent to compare itself against the literal string, which breaks the check. **Leave `<your current model>` verbatim** — that's the one placeholder the receiving agent fills at runtime from its own environment, not you. The orchestrator decomposes tasks, coordinates subagents, and runs integration validation, so it needs real reasoning capacity:
+**First choose the recommended orchestrator model** (`sonnet`, `opus`, or `fable`). The orchestrator decomposes tasks, coordinates subagents, and runs integration validation, so it needs real reasoning capacity:
 
 - **Default to `sonnet`** — a well-planned phase with a clear task list needs coordination, not frontier reasoning.
 - **Recommend `opus`** when the phase carries significant integration complexity, cross-cutting refactors, or architectural decisions where the orchestrator's own judgment is load-bearing.
-- **Recommend `fable`** (Claude Fable 5 — the frontier tier above `opus`, at roughly 2× its price) only for the exceptional phase where the orchestration itself is the hardest part: long-horizon, high-autonomy phases coordinating many parallel or long-running subagents; deep ambiguity the orchestrator must resolve rather than escalate; or plan-shaping decisions whose blast radius spans the remaining phases. Fable's documented strengths — long-horizon agentic execution and sustained multi-subagent coordination — are exactly the orchestrator's job, but its gains are on work *above* what `opus` already handles: if `opus` would orchestrate this phase equally well, `opus` is the right call.
+- **Recommend `fable`** (Claude Fable 5 — the frontier tier above `opus`, at roughly 2× its price) for the phase where the orchestration itself is the hardest part: long-horizon, high-autonomy phases coordinating many parallel or long-running subagents; deep ambiguity the orchestrator must resolve rather than escalate; or plan-shaping decisions whose blast radius spans the remaining phases. If `opus` would orchestrate this phase equally well, `opus` is the right call — but on a *genuine* opus/fable boundary, note that Fable at low effort often matches or beats prior tiers pushed to high effort, so end-to-end (tokens + redone work + your time) it can be the cheaper choice.
 - **Never recommend `haiku`** for the orchestrator.
 
 (This is separate from per-task subagent models — those are sized per task in the execution model.)
 
-### Handover prompt template
+**The model determines the prompt style.** Matching prompt shape to model tier is what gets the optimal outcome at the lowest token-and-time cost:
+
+- **`sonnet` / `opus` → Template A (prescriptive).** Explicit steps, checklists, a verbatim procedure — the scaffold is what keeps a mid-tier orchestrator's delegation and validation gates on rails.
+- **`fable` → Template B (goal-directed).** Fable plans better than prescriptive crutches, and the crutches get in the way — a flawed step gets followed faithfully. Give it the goal *with the why* (it uses intent to make micro-decisions you can't enumerate), the context, and hard constraints; let it own the orchestration plan and steer it at outcome level. Never send Fable Template A.
+
+**Emit the chosen template as a single fenced code block** (triple-backticks or `~~~`) so the user can copy the literal markdown source, markup and all, in one action. Do not render it into the chat as headers, bullets, and checkboxes — that destroys the markup the next chat needs. **Do not "tighten up" or summarise the chosen template** — every section is load-bearing; Template B is already the lean variant, its brevity is designed, not a licence to trim further.
+
+Fill every section. For mid-phase handovers, the status lists what's done vs. outstanding and the next chat's job is to finish the phase, not start the next. For end-of-phase, the next chat starts Phase N+1.
+
+**Inline the execution model.** Each template has a REQUIRED slot: fill it verbatim with `references/execution-model.md` (Template A) or `references/execution-model-fable.md` (Template B) — both in this skill's folder. Do not paraphrase, trim, or cross-wire them (the fable file is constraints-and-intent, the other is a procedure — that difference is the whole point). The emitted prompt must be self-contained: the receiving chat may not load this skill, so the model travels inside the prompt.
+
+**Placeholders (Template A):** replace *every* `<recommended orchestrator model>` placeholder in the header block — the H1 title suffix, the ⚠️ callout, and the three occurrences in the "Before you start" check. A raw placeholder in the self-check tells the receiving agent to compare itself against the literal string, which breaks the check. In both templates, **leave `<your current model>` verbatim** — that's the one placeholder the receiving agent fills at runtime from its own environment, not you.
+
+### Template A — prescriptive (orchestrator: `sonnet` / `opus`)
 
 ~~~markdown
 # Handover — <project name>, Phase <target-phase> (<"start" | "continue">) — orchestrate on `<recommended orchestrator model>`
@@ -197,6 +204,52 @@ Before handing over to the next phase, in this order:
 4. Produce the next handover prompt using the `handover` skill.
 ~~~
 
+### Template B — goal-directed (orchestrator: `fable`)
+
+Goals, reasoning, and constraints — no numbered procedure. The "why" in the Goal section is load-bearing, not decoration: write the real intent (who benefits, what it unblocks), because the receiving agent uses it to resolve decisions the plan doesn't cover.
+
+~~~markdown
+# Handover — <project name>, Phase <target-phase> (<"start" | "continue">) — orchestrate on `fable`
+
+> **⚠️ Set your model to `fable` before continuing.** If this chat is on a weaker model, switch with `/model` now.
+
+**As your very first action:** check the model you are running as. This handover's prompt style assumes `fable` — a weaker orchestrator needs a prescriptive handover instead, so if you are not on `fable`, stop and ask the user to switch with `/model` before doing any work. If the user declines to switch, do not proceed on this prompt: ask them to have it regenerated in the prescriptive style for `<your current model>` (the authoring chat's `handover` skill, Template A).
+
+## Goal
+
+<What Phase <target-phase> must achieve, stated as outcomes — then the why: the larger project this serves, who benefits, and what completing this phase unblocks. 2–4 sentences, drawn from the plan.>
+
+**Done means:**
+- [ ] <test command> — all green
+- [ ] PR reviewed and merged to `<base>` (regular merge commit — never squash)
+- [ ] UAT section for this phase filled in `<path>`
+- [ ] <any plan-specific acceptance gate>
+
+## Context (as of <YYYY-MM-DD HH:MM>)
+
+- **Plan (authoritative — read it; this handover points at it, it does not replace it):** `<absolute path>`; phase-specific plan (if any): `<path>`
+- **Completed and merged to `<base-branch>`:** Phase 0 — <one line>; … Phase <N> — <one line>, PR #<num> (`<sha>`)
+- **In-progress (mid-phase only, else omit):** done — <tasks>; outstanding — <tasks>; branch `<branch>` (unmerged)
+- **Verification evidence:** `<test command>` — `X/Y passing`; `<lint>` — clean; `<types>` — clean; UAT: <link or "N/A">
+- **Deviations from plan so far:** <deviation + reason, or "none">
+- **Environment / secrets:** `<ENV_VAR>` — <how to obtain; reference the store, never inline>
+
+## Constraints
+
+- Branch: off `<base>` as `<type>/<short-name>` (or continue `<existing-branch>` mid-phase). Conventional commits only.
+- Guardrails (from `CLAUDE.md` — enforce in reviews):
+  - <guardrail 1, verbatim>
+  - <guardrail 2>
+
+## How you work
+
+<!-- REQUIRED SLOT: replace this comment with the FULL contents of references/execution-model-fable.md, verbatim. Never emit the handover with this slot unfilled, paraphrased, or swapped for the prescriptive execution model. -->
+
+## At phase end
+
+Once every box in **Done means** is ticked: run `summarise-session` (the reflective pass that decides what to persist), write a phase memory entry to `<project-memory-dir>/phase_<target-phase>_<short-title>.md` with a pointer line in `MEMORY.md`, then produce the next handover with the `handover` skill.
+~~~
+
 ## Step 5: Hand off
 
 Emit the handover prompt and almost nothing else. One short lead-in ("Phase N done. Paste this into a fresh chat:" or "Mid-phase hop — paste this into a fresh chat to continue:") plus the **fenced code block containing the handover**. The code block is non-negotiable: the user needs to copy the literal markdown source — headers, bullets, checkboxes intact — not a rendered view. A rendered handover looks fine in the current chat and pastes as broken plaintext in the next one.
@@ -213,8 +266,10 @@ Do not bury the prompt under a chatty summary; the user needs to copy it cleanly
 | Trimming the template to be "more concise" | Every section is load-bearing. Trimming always seems harmless in the moment and always bites the next chat. |
 | Leaking long secrets inline | Handover prompts get pasted into shared notes and other chats. Reference the secret store; only inline values the user has explicitly authorised inline. |
 | Recommending `fable` or `opus` "to be safe" | The premium tiers pay off only where the orchestration or task is genuinely beyond the tier below (pricing scales ~1:3:5:10 haiku→fable). On routine phases they burn a multiple of the necessary spend for the same outcome. Size the model to the phase — in both directions. |
+| Sending `fable` the prescriptive template (A) | Fable follows flawed steps faithfully and plans better without them — the crutches get in the way. Fable gets goal + why + context + constraints (Template B) and owns its own orchestration plan. |
+| Sending `sonnet`/`opus` the goal-directed template (B) | The prescriptive scaffold is what keeps a mid-tier orchestrator's delegation gate and validation steps on rails; goals-only prompting lets them drift. Prompt style follows the model, both directions. |
 | Naming no execution model | Without the subagent-orchestration block, the next chat defaults to executing inline and burns its context on task-level detail instead of integration-level coordination. |
-| Executing a task inline without naming the exception | The whole point of hopping was a clean orchestrator context; an inline task reloads task-level detail into it and re-bloats the very context the handover was meant to keep tight. Default to a subagent; if you go inline, name which gate exception applies. |
+| Executing a task inline without naming the exception | The whole point of hopping was a clean orchestrator context; an inline task reloads task-level detail into it and re-bloats the very context the handover was meant to keep tight. Default to a subagent; if you go inline, state why in one line (Template A's execution model names the allowed exceptions). |
 | Continuing "just one more task" after writing the handover | Defeats the point of hopping. Emit the handover and stop. |
 | Emitting the handover without a lead-in the user can see | The prompt is the payload; the lead-in tells the user what to do with it. A handover with no framing often gets missed or misused. |
 
