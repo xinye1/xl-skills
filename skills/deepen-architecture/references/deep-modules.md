@@ -52,12 +52,12 @@ Interrogating an interface: can I reduce the number of methods? Can I simplify t
 
 ## Dependency categories
 
-Classify a candidate's dependencies — the category determines how the deepened module gets tested across its seam, and whether a port is justified at all.
+Classify a candidate's dependencies — the category determines how the deepened module gets tested across its seam, and whether a port is justified at all. It does **not** decide candidacy: the deletion test does that, and a candidate that fails it is not rescued by having no remote I/O.
 
 | Category | What it is | Deepening shape |
 |---|---|---|
-| **In-process** | Pure computation, in-memory state, no I/O | Always deepenable. Merge the modules, test through the new interface directly. No adapter. |
-| **Local-substitutable** | Has a local test stand-in (PGLite for Postgres, in-memory filesystem) | Deepenable if the stand-in exists. Test with it running in the suite. The seam is *internal* — no port at the external interface. |
+| **In-process** | Pure computation, in-memory state, no I/O | If the candidate survives the deletion test, merge the modules and test through the new interface. No adapter. |
+| **Local-substitutable** | Has a local test stand-in (PGLite for Postgres, in-memory filesystem) | If the candidate survives the deletion test and the stand-in exists, test the deepened module with it running in the suite. The seam is *internal* — no port at the external interface. |
 | **Remote but owned** | Your own services across a network (internal APIs, microservices) | Define a **port** at the seam. The deep module owns the logic; the transport is an injected adapter — HTTP/gRPC/queue in production, in-memory in tests. |
 | **True external** | Third parties you don't control (Stripe, a broker API) | Injected port, mock adapter in tests. |
 
@@ -65,7 +65,7 @@ Phrase a remote-but-owned recommendation as: *"Define a port at the seam, HTTP a
 
 ## Testing strategy: replace, don't layer
 
-- Old unit tests on the shallow modules become waste once tests exist at the deepened module's interface. **Delete them** — keeping both is how a deepening turns into a net increase in code.
+- Old unit tests on the shallow modules become waste once *equivalent coverage* exists at the deepened module's interface. **Delete them then** — keeping both is how a deepening turns into a net increase in code. Retain any test covering behaviour the new interface does not yet exercise; deleting before parity drops regression cover mid-migration.
 - Write the new tests at the deepened module's interface. The interface is the test surface.
 - Assert on observable outcomes through the interface, never on internal state.
 - Tests should survive internal refactors. A test that must change when the implementation changes is testing past the interface — that's a finding about the seam, not about the test.

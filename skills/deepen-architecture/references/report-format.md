@@ -19,12 +19,12 @@ Define light-mode colour tokens on bare `:root`, redefine them under both `@medi
 One `<article>` per candidate:
 
 - **Title** — names the deepening as an action: "Collapse the Order intake pipeline", not "Order intake issues".
-- **Badge row** — strength (`Strong` = emerald, `Worth exploring` = amber, `Speculative` = slate) plus the dependency category (`in-process`, `local-substitutable`, `ports & adapters`, `mock`).
+- **Badge row** — strength (`Strong` = emerald, `Worth exploring` = amber, `Speculative` = slate) plus the dependency category (`in-process`, `local-substitutable`, `remote-but-owned`, `true-external`). Show the adapter strategy (`ports & adapters`, `mock`) separately when it needs saying.
 - **Files** — monospaced list of what's involved.
 - **Before / After diagram** — the centrepiece, side by side. Patterns below.
 - **Problem** — one sentence. What hurts.
 - **Solution** — one sentence, plain English. What changes.
-- **Wins** — bullets, ≤6 words, each naming the gain in glossary terms: *"locality: bugs land in one module"*, *"leverage: one interface, 9 call sites"*, *"delete 4 shallow wrappers"*. Never *"easier to maintain"* or *"cleaner code"* — those aren't in the glossary and don't earn their place.
+- **Wins** — bullets, ≤6 words, each naming the gain in glossary terms: *"locality: bugs land in one module"*, *"leverage: one interface, 9 call sites"*, *"delete 4 shallow modules"*. Never *"easier to maintain"* or *"cleaner code"* — those aren't in the glossary and don't earn their place.
 - **Deletion test** — one line recording the answer, because it's the reason the candidate exists: *"delete it and pricing rules reappear in 6 callers — concentrates."*
 - **ADR callout** — only when it applies: one line, amber-tinted, naming the ADR and why it's worth reopening.
 
@@ -49,7 +49,7 @@ flowchart LR
 
 **Hand-built boxes and arrows** — inline SVG or bordered divs, for when you want the "after" to read as one thick-bordered deep module with its internals greyed out. Mermaid won't give that the right visual weight.
 
-**Cross-section** — horizontal bands showing the layers a call passes through. Before: six thin bands each doing almost nothing. After: one thick band with the consolidated responsibility.
+**Cross-section** — horizontal bands showing the modules a call passes through. Before: six thin bands each doing almost nothing. After: one thick band with the consolidated responsibility.
 
 **Mass diagram** — two rectangles per module, interface surface vs implementation. Before: interface nearly as tall as the implementation (shallow). After: short interface, tall implementation (deep). The most direct rendering of what "depth" means, and worth using at least once.
 
