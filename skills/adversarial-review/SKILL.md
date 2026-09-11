@@ -34,7 +34,7 @@ Step 2: Pick the reviewer model (opus default, fable for high-stakes/parity)
 Step 3: Dispatch the cold reviewer (consent-gated if proactive; synchronous, read-only)
 Step 4: Triage findings with evidence — agree/disagree table to the user
 Step 5: Revise — only after the user has ruled on the table
-Step 6: One re-review round max if changes were major (with review log); then user decides
+Step 6: Walk the round ladder (re-review → user → optional authorised round; 3-round cap)
 ```
 
 ### Step 3: Dispatch
@@ -101,15 +101,17 @@ Present every finding to the user in a table: finding · severity · your verdic
 
 ### Step 6: Re-review protocol and stop condition
 
-One re-review round after major revisions, maximum — **counted per body of text, not per artifact.** A revision that only fixes findings gets its one re-review; a revision that *introduces new mechanisms* (a new path, guard, table, or rule that no round has yet read) resets the count for that text, because a cold reviewer has never seen it. Measured 2026-09-04 (WS2 edge design): after two REJECT rounds and their rulings, revision 3 added an interim execution path and a whipsaw guard; the operator ordered a third cold round on it, which found a **blocking** dividend-basis defect in text written after round 2, plus twelve more — none of which the earlier rounds could have caught. So: two rounds on the same mechanisms, then human; new mechanisms earn a fresh round.
+**The round ladder — this is the single rule; everywhere else in this skill points here rather than restating it.** Run it in order and stop at the first step whose condition fails.
 
-**A second REJECT always goes to the user first — that rule wins.** The fresh-round exception never fires on its own: it is something the *user* may authorise once the disagreement has been put to them, not something this skill takes itself. (That is what happened in the measured case — the operator ordered the third round.) So the sequence is fixed: second REJECT → user → optionally a fresh round on the newly-introduced text.
+1. **Round 1** — the initial cold review (Steps 1–5).
+2. **Round 2** — one re-review, and only after a *major* revision. A revision that merely fixes findings gets this and nothing more.
+3. **A REJECT at round 2 always goes to the user.** No exceptions, and no onward round taken on this skill's own authority — the disagreement is design-level, so take it to the user (or back to `grill-into-design`) rather than looping subagents until one capitulates. When you hand it over, name explicitly which text is newly introduced and therefore still uncold-read.
+4. **Round 3 exists only if the user authorises it, and only for new mechanisms** — a path, guard, table or rule that no prior round has read. Both conditions are required: user authorisation alone does not make a re-read of old text worthwhile, and new mechanisms alone do not bypass step 3. This is the step the measured case exercised: on 2026-09-04 (WS2 edge design), revision 3 of the WS2 spec added an interim execution path and a whipsaw guard after two REJECT rounds; the operator ordered a third cold round, which found a **blocking** dividend-basis defect in text written after round 2, plus twelve more findings — none of which the earlier rounds could have caught.
+5. **Three dispatched rounds per artifact is the hard cap.** Past it, stop and put it to the user: name what is newly unreviewed and ask whether to spend a fourth round or take it to design. Only an explicit user yes buys another. Without this cap an author could add one new mechanism per revision and grind frontier-model rounds indefinitely — the exact failure the cap exists to stop.
 
-**The artifact-level cap still binds — three dispatched rounds per artifact, total.** The per-text rule decides *whether a revision has earned* a fresh round; it is not a licence to keep buying them. An author who adds one new guard per revision would otherwise reset the count forever and grind frontier-model rounds indefinitely, which is the exact failure the cap exists to stop. At three rounds, stop and put it to the user: name what is newly unreviewed and ask whether to spend a fourth round or take it to design. Only an explicit user yes buys another.
+The per-text principle behind steps 4–5: a cap counted per *artifact* would refuse to read genuinely new text, and a cap counted per *body of text* alone would never stop. The ladder is what reconciles them — new text can earn a round, but only through the user, and only three times.
 
 Round N must not silently re-litigate the rounds before it: persist a review log next to the artifact (`<artifact>.review.md` — every prior round's findings, per-finding verdicts with citations, user rulings, appended round by round) and name it in **every** re-review dispatch as reviewable input — not round 2 alone. That is not rationale leakage — it is a committed adjudication record, contestable like any other repo artifact (see the hard rules). A re-review reviewer may challenge a ruling only with *new* evidence; re-raised findings without new evidence are discarded at triage without penalty.
-
-If the second review still comes back REJECT, the disagreement is design-level — take it to the user (or back to `grill-into-design`), don't loop subagents until one capitulates. This is unconditional: it holds even when the revision introduced new mechanisms. The user, seeing what is newly unreviewed, is the one who decides whether a fresh round is worth it — name that text for them explicitly when you hand it over.
 
 ## Anti-patterns
 
@@ -121,7 +123,7 @@ If the second review still comes back REJECT, the disagreement is design-level �
 | Rebutting findings from memory | "That was intentional" is commitment bias verbatim. Re-check the artifact/code; cite or concede. |
 | Cherry-picking the easy findings | Fixing typo-tier findings while skipping the architectural one is review theatre. Triage all of them, visibly. |
 | Reviewing chat prose | Not reproducible, not independent, contaminated by transcript. File first. |
-| Looping reviews until APPROVE | A third round *on the same text* isn't rigour, it's grinding a subagent into agreement. Two rounds, then human — always. Text a revision newly introduced has never been cold-read and can earn its own round, but only once the user has seen the second REJECT and said so (see Step 6). Three dispatched rounds per artifact is the hard cap regardless. |
+| Looping reviews until APPROVE | A re-review round *on the same text* isn't rigour, it's grinding a subagent into agreement. Walk the round ladder in Step 6 and stop where it says to — it is the only statement of the limit, and every onward round runs through the user. |
 | Accepting takedown-only reviews | Findings without evidence or a resolution condition are performative negativity — as useless as a rubber stamp. Send them back or discard them at triage, visibly. |
 | Running it on trivial artifacts | A 10-line plan the user will read anyway doesn't warrant a frontier-model dispatch. This skill is for artifacts that gate real work. |
 
