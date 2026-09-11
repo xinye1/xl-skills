@@ -66,6 +66,30 @@ Packaged `.skill` files land in `dist/` (gitignored).
 - [Claude Code skills documentation](https://code.claude.com/docs/en/skills) — the official guide to creating, configuring, and sharing skills
 - [skill-creator plugin](https://github.com/anthropics/claude-plugins-official/tree/main/plugins/skill-creator) — the official plugin used to generate and package skills, and the tool used to build the skills in this repo
 
+## Token management
+
+Claude re-reads its **entire accumulated context on every tool call**. So a session's cost grows with the *square* of its length, not linearly: an agent that makes 600 tool calls costs roughly 4x one that makes 300, for twice the work. Nothing in the tooling caps this — the 1M-token context window carries no price premium, so a long-running agent will happily pay a million tokens a call to return twenty.
+
+Measured across one heavy day of these skills' own workflows: 1.7bn tokens, of which **635 calls ran above 500k of context and returned under 100 tokens each — 27% of the day's spend for near-zero yield**. Separately, two subagents were killed by a usage limit 300+ calls in, discarding context that had already been bought.
+
+Three practices follow. Each is carried by a specific skill element rather than left to good intentions:
+
+**1. Keep each unit of work inside one working context.**
+
+| Level | Where it lives |
+|---|---|
+| Chat | [`execute-phased-plan`](skills/execute-phased-plan/SKILL.md) cuts at phase boundaries; [`handover`](skills/handover/SKILL.md) carries state across, so no one chat accumulates a whole plan |
+| Task | The task-sizing contract in [`execution-model.md`](skills/handover/references/execution-model.md) — one coherent deliverable, ~50–150 tool calls, split anything that would grind on the same large artifact for hours |
+| Detection | [`summarise-session`](skills/summarise-session/SKILL.md) names oversized tasks in its orchestration read — outlier tool-call counts, or late calls carrying a large context for near-empty replies |
+
+**2. Let the default model tier do its job.** [`execution-model.md`](skills/handover/references/execution-model.md) sizes each subagent's model to its task — `sonnet` by default, escalating only for genuine ambiguity or blast radius. That rule was always there; what is new beside it is the measured consequence (1,944 `sonnet` task-subagent calls ~$77 in a day, against 2,900 `opus` calls ~$734). The exception is deliberate: [`adversarial-review`](skills/adversarial-review/SKILL.md) and [`nuclear-code-review`](skills/nuclear-code-review/SKILL.md) mandate opus-or-above, because a weak reviewer nodding along is worse than no review.
+
+**3. Make long work survivable.** [`execution-model.md`](skills/handover/references/execution-model.md) requires any subagent expected to run past ~30 minutes to checkpoint progress to a named durable file. A killed agent's context is unrecoverable and already paid for — checkpointing turns a lost run into lost minutes.
+
+Both execution-model variants carry all three, since they are inlined verbatim into every handover prompt and so travel into chats that never load a skill.
+
+> Checking your own numbers: `python3 ~/.claude/token-audit.py [YYYY-MM-DD]` reconstructs per-day and per-subagent spend from local transcripts. Not part of this repo; it lives beside the memory that documents the incident above.
+
 ## Current skills
 
 | Skill | What it does |
