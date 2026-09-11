@@ -101,7 +101,7 @@ Present every finding to the user in a table: finding · severity · your verdic
 
 ### Step 6: Re-review protocol and stop condition
 
-One re-review round after major revisions, maximum. Round 2 must not silently re-litigate round 1: persist a review log next to the artifact (`<artifact>.review.md` — round-1 findings, per-finding verdicts with citations, user rulings) and name it in the round-2 dispatch as reviewable input. That is not rationale leakage — it is a committed adjudication record, contestable like any other repo artifact (see the hard rules). The round-2 reviewer may challenge a ruling only with *new* evidence; re-raised findings without new evidence are discarded at triage without penalty.
+One re-review round after major revisions, maximum — **counted per body of text, not per artifact.** A revision that only fixes findings gets its one re-review; a revision that *introduces new mechanisms* (a new path, guard, table, or rule that no round has yet read) resets the count for that text, because a cold reviewer has never seen it. Measured 2026-09-04 (WS2 edge design): after two REJECT rounds and their rulings, revision 3 added an interim execution path and a whipsaw guard; the operator ordered a third cold round on it, which found a **blocking** dividend-basis defect in text written after round 2, plus twelve more — none of which the earlier rounds could have caught. So: two rounds on the same mechanisms, then human; new mechanisms earn a fresh round. Round 2 must not silently re-litigate round 1: persist a review log next to the artifact (`<artifact>.review.md` — round-1 findings, per-finding verdicts with citations, user rulings) and name it in the round-2 dispatch as reviewable input. That is not rationale leakage — it is a committed adjudication record, contestable like any other repo artifact (see the hard rules). The round-2 reviewer may challenge a ruling only with *new* evidence; re-raised findings without new evidence are discarded at triage without penalty.
 
 If the second review still comes back REJECT, the disagreement is design-level — take it to the user (or back to `grill-into-design`), don't loop subagents until one capitulates.
 
@@ -115,7 +115,7 @@ If the second review still comes back REJECT, the disagreement is design-level �
 | Rebutting findings from memory | "That was intentional" is commitment bias verbatim. Re-check the artifact/code; cite or concede. |
 | Cherry-picking the easy findings | Fixing typo-tier findings while skipping the architectural one is review theatre. Triage all of them, visibly. |
 | Reviewing chat prose | Not reproducible, not independent, contaminated by transcript. File first. |
-| Looping reviews until APPROVE | A third round isn't rigour, it's grinding a subagent into agreement. Two rounds, then human. |
+| Looping reviews until APPROVE | A third round *on the same text* isn't rigour, it's grinding a subagent into agreement. Two rounds, then human — but text a revision newly introduced has never been cold-read and earns its own round (see Step 6). |
 | Accepting takedown-only reviews | Findings without evidence or a resolution condition are performative negativity — as useless as a rubber stamp. Send them back or discard them at triage, visibly. |
 | Running it on trivial artifacts | A 10-line plan the user will read anyway doesn't warrant a frontier-model dispatch. This skill is for artifacts that gate real work. |
 
