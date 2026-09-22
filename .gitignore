@@ -5,3 +5,5 @@ __pycache__/
 .DS_Store
 skills/*-workspace/
 .claude/settings.local.json
+# claude.ai org skills, synced by Claude Code into ~/.claude/skills (symlinked here)
+skills/synced/
