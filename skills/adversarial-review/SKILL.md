@@ -20,7 +20,7 @@ A session that authored a plan cannot objectively review it. Models are trained 
 **Reviewer model ≥ authoring model, never below opus.** The point is maximum brain power on the highest-leverage artifacts:
 
 - **Default `opus`** — frontier-class adversarial reading for most plans and specs.
-- **Use `fable`** (the frontier tier above `opus`, at roughly 2× its price) when the artifact gates long-horizon multi-phase work, carries deep architectural ambiguity, or its blast radius spans many downstream phases — the cases where a missed flaw is most expensive. And it is *required*, not merely natural, when the authoring session ran on fable — the ≥ rule is binding.
+- **Use `fable`** (the frontier tier above `opus`, at roughly 2.5× its price) when the artifact gates long-horizon multi-phase work, carries deep architectural ambiguity, or its blast radius spans many downstream phases — the cases where a missed flaw is most expensive. And it is *required*, not merely natural, when the authoring session ran on fable — the ≥ rule is binding.
 - **Never `sonnet` or `haiku`** for the reviewer. A weaker reviewer nodding along is worse than no review — it launders the bias with false legitimacy.
 - If the environment fixes subagent models or an alias isn't available, map by tier, not the literal alias: the nearest available tier at or above the authoring model.
 
