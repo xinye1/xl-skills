@@ -1,6 +1,6 @@
 ---
 name: handover
-description: Use when a multi-phase effort needs to continue in a fresh chat — the user says "handover", "write a handover", "carry on in a new chat", "continue in a fresh chat", "start the next phase in a new chat", "give me a prompt for a new chat", "hop to a fresh chat", or signals context is filling up. Also use proactively at a phase boundary in a long plan, even unprompted. Run summarise-session first when closing a phase. Not for coordinating a parallel live session — that's cross-session-brief.
+description: Use when a multi-phase effort needs to continue in a fresh chat — the user says "handover", "write a handover", "carry on in a new chat", "continue in a fresh chat", "start the next phase in a new chat", "give me a prompt for a new chat", "hop to a fresh chat", or signals context is filling up. Saves the handover as a file that `/pickup` loads in the fresh chat after `/clear`. Also use proactively at a phase boundary in a long plan, even unprompted. Run summarise-session first when closing a phase. Not for coordinating a parallel live session — that's cross-session-brief.
 ---
 
 # Handover — hop to a fresh chat mid-plan without drift
@@ -9,7 +9,9 @@ This skill exists for one moment: a multi-phase plan is partway through, context
 
 **Who this skill is for:** someone executing a long plan one phase at a time (often via `execute-phased-plan`). It also works as a standalone: any time the user wants a fresh chat to continue from a clean starting point, this produces the prompt that makes that possible.
 
-**What this skill is NOT:** it does not execute the next phase. It does not keep going "just to finish this one file". It emits a prompt and stops. The point is to get out of the current chat cleanly so the next chat starts with tight, relevant context.
+**What this skill is NOT:** it does not execute the next phase. It does not keep going "just to finish this one file". It saves the prompt to a handover file, proves the save, and stops. The point is to get out of the current chat cleanly so the next chat starts with tight, relevant context.
+
+**The hop, end to end (CLI):** `handover` saves the prompt to `~/.claude/handovers/<repo>/` → the user runs `/model <recommended>` only if the receipt shows a model mismatch, then `/clear` in the same terminal → `/pickup` in the fresh chat loads the file as its brief. Nothing is copied by hand. `/clear` keeps the old chat on disk (resumable with `/resume`), and the handover file doesn't depend on it: it survives a reboot and waits until someone picks it up, in any later session in that repo. This works like `/compact`, except the user can see and choose exactly what carries over.
 
 ## The two handover shapes
 
@@ -104,7 +106,7 @@ Why memory now, not later: the details fade fast. The next chat inherits the han
 - **`sonnet` → Template A (prescriptive).** Explicit steps, checklists, a verbatim procedure — the scaffold is what keeps a mid-tier orchestrator's delegation and validation gates on rails.
 - **`opus` / `fable` → Template B (goal-directed).** Both plan better than a prescriptive procedure, and the procedure gets in the way: they follow instructions closely and literally, so a flawed step gets followed faithfully. Give them the goal *with the why* (they use intent to make micro-decisions you can't enumerate), the context, and hard constraints; let them own the orchestration plan and steer at outcome level. Never send them Template A. (`opus` here means Opus 5 or later — it shares Fable 5.1's always-on reasoning, and Anthropic's guidance for current models is that step-by-step scripts for judgement work lower output quality. An older Opus is mid-tier: give it Template A.)
 
-**Emit the chosen template as a single fenced code block** (triple-backticks or `~~~`) so the user can copy the literal markdown source, markup and all, in one action. Do not render it into the chat as headers, bullets, and checkboxes — that destroys the markup the next chat needs. **Do not "tighten up" or summarise the chosen template** — every section is load-bearing; Template B is already the lean variant, its brevity is designed, not a licence to trim further.
+**Write the chosen template into the handover file (Step 5), not into the chat.** The file holds the literal markdown source, markup and all, and `/pickup` loads it verbatim. Asking the user to drag-select dozens of lines out of a terminal is the friction this design exists to remove. **Do not "tighten up" or summarise the chosen template** — every section is load-bearing; Template B is already the lean variant, its brevity is designed, not a licence to trim further.
 
 Fill every section. For mid-phase handovers, the status lists what's done vs. outstanding and the next chat's job is to finish the phase, not start the next. For end-of-phase, the next chat starts Phase N+1.
 
@@ -250,11 +252,71 @@ Goals, reasoning, and constraints — no numbered procedure. The "why" in the Go
 Once every box in **Done means** is ticked: run `summarise-session` (the reflective pass that decides what to persist), write a phase memory entry to `<project-memory-dir>/phase_<target-phase>_<short-title>.md` with a pointer line in `MEMORY.md`, then produce the next handover with the `handover` skill.
 ~~~
 
-## Step 5: Hand off
+## Step 5: Save, verify, hand off
 
-Emit the handover prompt and almost nothing else. One short lead-in ("Phase N done. Paste this into a fresh chat:" or "Mid-phase hop — paste this into a fresh chat to continue:") plus the **fenced code block containing the handover**. The code block is non-negotiable: the user needs to copy the literal markdown source — headers, bullets, checkboxes intact — not a rendered view. A rendered handover looks fine in the current chat and pastes as broken plaintext in the next one.
+The handover file is the only bridge between chats, so it has to be saved where it survives a reboot, and the save has to be proven before the user runs `/clear`.
 
-Do not bury the prompt under a chatty summary; the user needs to copy it cleanly. After emitting, stop. Do not offer to start the next phase here. If the user wants to continue in this chat anyway, they'll tell you — but the default after a handover is always: this chat is done.
+**Where it goes.** `~/.claude/handovers/<repo>/<YYYY-MM-DD-HHMM>-<slug>.md`, for example `2026-09-23-1432-phase-3-start.md`.
+- `<repo>` is the main checkout's folder name, so every worktree and branch of a repo shares one queue: `c=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) && basename "$(dirname "$c")" || basename "$PWD"`.
+- It is keyed by name, not path, so the queue still matches if the repo is cloned somewhere else, or `~/.claude/handovers/` is copied to a new machine.
+- Never `/tmp`: on some machines it's a tmpfs that a reboot wipes.
+- Never overwrite an existing file: if the name is taken, add `-2`.
+- The Write tool needs an absolute path, so resolve `$HOME` first.
+
+**Frontmatter first, then the filled template.** `/pickup` lists the queue from these fields:
+
+```yaml
+---
+title: <project>, Phase <N> (<start|continue>) — <one-line job>
+repo: <repo>
+cwd: <absolute working directory>
+branch: <branch the next chat works on>
+model: <recommended orchestrator model>
+kind: <end-of-phase | mid-phase>
+written: <YYYY-MM-DDTHH:MM, local time>
+from_session: ${CLAUDE_SESSION_ID}
+status: pending
+---
+```
+
+**Verify from disk. Never skip this.** Re-read the file with one command, then report what it printed:
+
+```bash
+f="<absolute path>"; d=$(dirname "$f")
+test -s "$f" && echo "saved: $(wc -l <"$f") lines" || echo "FAIL: missing or empty"
+grep -q '^# Handover — ' "$f" && echo "ok: title" || echo "FAIL: no '# Handover —' title"
+grep -qE 'Default: every task in this phase is delegated|Constraints and intent, not a procedure' "$f" && echo "ok: execution model inlined" || echo "FAIL: execution model missing"
+grep -qE 'REQUIRED SLOT|<recommended orchestrator model>' "$f" && echo "FAIL: unfilled slot or placeholder" || echo "ok: no unfilled placeholders"
+tail -n 3 "$f" | grep -q 'handover` skill' && echo "ok: complete to the end" || echo "FAIL: file looks cut off (closing section missing)"
+echo "waiting in $(basename "$d"): $(ls "$d"/*.md 2>/dev/null | wc -l)"
+```
+
+Any `FAIL`: fix the file and re-run the check. Never show a green receipt over a failed check. If the file genuinely can't be written (permissions, disk), say so plainly and print the handover in a fenced code block as the last resort, so it isn't lost.
+
+**Receipt: the only thing you print.** It is short, and every tick comes from the check above:
+
+```text
+✓ Handover saved — <title>
+  file      ~/.claude/handovers/<repo>/<name>.md
+  checks    ✓ <L> lines re-read from disk  ✓ execution model inlined  ✓ no unfilled placeholders  ✓ complete to the end
+  model     this phase wants <recommended> · this chat is on <current>   ✓ nothing to switch | ⚠ switch first
+  waiting   <W> handover(s) for <repo>
+  this chat ${CLAUDE_SESSION_ID}  (optional: claude --resume <id>; the file stands alone)
+
+Next, in this terminal:
+  1. /model <recommended>   ← only when the model line shows ⚠
+  2. /clear                 ← this chat stays saved on disk
+  3. /pickup
+```
+
+**The `model` line decides whether step 1 is printed.** Compare the recommended model with the model you are running as (from your environment / system context, the same source the handover's own first-action check reads), by tier: `haiku` < `sonnet` < `opus` < `fable`.
+- **Same tier:** the line ends `✓ nothing to switch`, and the `/model` step is left out (print `/clear` then `/pickup` as steps 1 and 2). The line stays so the user can see why there is no `/model` step.
+- **This chat is weaker than recommended:** `⚠ switch first`, and print the `/model` step. Without it the fresh chat stops at its own model check and asks.
+- **This chat is stronger than recommended:** `⚠ higher than this phase needs`, and print the `/model` step marked `(optional, cheaper)`. The handover works on the stronger model, but the phase doesn't need it.
+
+If you can't tell which model you are running as, say so on the model line and print the `/model` step.
+
+Then stop. Do not print the handover body, and do not offer to start the next phase here. If the user wants to carry on in this chat anyway, they'll say so, but the default after a handover is always: this chat is done.
 
 ## Anti-patterns
 
@@ -264,19 +326,24 @@ Do not bury the prompt under a chatty summary; the user needs to copy it cleanly
 | "See the previous conversation for details" | The next chat has no access to this chat. If it's not in the handover, it doesn't exist. |
 | Summarising the plan instead of referencing it | The plan file is authoritative. The handover points at it; it does not replace it. Rewriting the plan in the handover invites drift. |
 | Trimming the template to be "more concise" | Every section is load-bearing. Trimming always seems harmless in the moment and always bites the next chat. |
-| Leaking long secrets inline | Handover prompts get pasted into shared notes and other chats. Reference the secret store; only inline values the user has explicitly authorised inline. |
+| Leaking long secrets inline | Handover files persist on disk indefinitely and get copied into other chats and notes. Reference the secret store; only inline values the user has explicitly authorised inline. |
 | Recommending `fable` or `opus` "to be safe" | The premium tiers pay off only where the orchestration or task is genuinely beyond the tier below (list prices scale ~1:2:4:10 haiku→fable). On routine phases they burn a multiple of the necessary spend for the same outcome. Size the model to the phase — in both directions. |
 | Sending `opus` / `fable` the prescriptive template (A) | They follow flawed steps faithfully and plan better without them — the crutches get in the way. They get goal + why + context + constraints (Template B) and own the orchestration plan. |
 | Sending `sonnet` the goal-directed template (B) | The prescriptive scaffold is what keeps a mid-tier orchestrator's delegation gate and validation steps on rails; goals-only prompting lets them drift. Prompt style follows the model, both directions. |
 | Naming no execution model | Without the subagent-orchestration block, the next chat defaults to executing inline and burns its context on task-level detail instead of integration-level coordination. |
 | Executing a task inline without naming the exception | The whole point of hopping was a clean orchestrator context; an inline task reloads task-level detail into it and re-bloats the very context the handover was meant to keep tight. Default to a subagent; if you go inline, state why in one line (Template A's execution model names the allowed exceptions). |
 | Continuing "just one more task" after writing the handover | Defeats the point of hopping. Emit the handover and stop. |
-| Emitting the handover without a lead-in the user can see | The prompt is the payload; the lead-in tells the user what to do with it. A handover with no framing often gets missed or misused. |
+| Printing the handover body in the chat | In a terminal, that means drag-selecting dozens of lines, and a copy that goes astray loses the notes. The file is the handover and `/pickup` loads it; the chat gets the receipt only. |
+| A receipt without the from-disk check | "Saved ✓" from memory of the Write call is a claim, not evidence. The user is about to `/clear` on the strength of that tick, so it must come from re-reading the file. |
+| Saving to `/tmp` or the repo's working tree | `/tmp` can be wiped by a reboot, and a working-tree file gets swept up by `git add` or deleted by a cleanup. The handover queue lives in `~/.claude/handovers/`. |
+| A receipt with no next steps | The user runs `/clear` → `/pickup` (and `/model` when needed) straight from the receipt. Leave a step out and the fresh chat starts on the wrong model or never loads the handover. |
+| Printing the `/model` step when the chat is already on the recommended model | The user can't tell whether it matters, so they stop trusting the receipt's steps. Compare first: print `/model` only on a mismatch, and keep the `model` line so the missing step is explained. |
 
 ## Composition with other skills
 
 | Skill | Role |
 |---|---|
+| `pickup` | The receiving half. In the fresh chat, `/pickup` lists this repo's waiting handovers, loads the chosen one in full, checks it isn't stale, archives it to `picked-up/` (never deleted), and starts on it as the chat's brief. |
 | `summarise-session` | The backward-looking companion. At a phase boundary, run `summarise-session` *first* — its retrospective surfaces the gotchas, deviations, and follow-up candidates (issues to file, memories to save) that this skill's "Deviations from plan", "Key guardrails", and Step 3 phase memory then carry forward. The summary is the sense-making pass; the handover is the persistence + forward pass. |
 | `execute-phased-plan` | Governs the rhythm of long multi-phase plans end-to-end; this skill is the "emit the handover" step of that rhythm, extracted so it can also be invoked standalone whenever context fills up. |
 | `superpowers:executing-plans` | Referenced inside the handover prompt — each subagent spawned by the next chat follows this skill to execute its individual task. |

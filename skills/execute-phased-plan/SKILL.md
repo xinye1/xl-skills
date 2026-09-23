@@ -27,14 +27,14 @@ This single sentence prevents the most common failure mode: Claude finishing one
 
 ## Step 1: Emit the first handover prompt (skip only if executing a handover-launched chat)
 
-Default behaviour: once scope is confirmed, **immediately produce a handover prompt for the current phase** via the `handover` skill (see Step 3), then stop. Do not start implementing. The user pastes that prompt into a fresh chat, and that phase executes there.
+Default behaviour: once scope is confirmed, **immediately produce a handover prompt for the current phase** via the `handover` skill (see Step 3), then stop. Do not start implementing. The user runs `/clear` and then `/pickup`, and the phase executes in that fresh chat.
 
 Why this matters: if the user invoked you after brainstorming, plan-writing, spec review, or any other upstream work, that chat's context is already partially spent. Importing it into execution defeats the whole point of phase pacing. A fresh chat that *starts* from the handover prompt has exactly the context the phase needs — no more, no less.
 
 **Skip this step and go straight to Step 2 only if** one of these is true:
 
 - The user explicitly overrides: "execute here", "do it in this chat", "no handover, just run it", "I'm already in a fresh chat".
-- The current chat is itself a handover-launched chat — detectable when the user's opening message closely matches the `# Handover —` template (in which case this IS the clean execution chat, just run the phase).
+- The current chat is itself a handover-launched chat, detectable when it opened with `/pickup` loading a handover, or the user's opening message closely matches the `# Handover —` template. In that case this IS the clean execution chat, so just run the phase.
 - The plan has a single phase and the user didn't ask for pacing — this skill shouldn't have triggered in the first place; proceed normally.
 
 In all other cases, emit the handover and stop. If you're unsure, emit the handover and ask: "I've drafted the Phase N handover. Want to start Phase N in a fresh chat (recommended), or execute here?"
