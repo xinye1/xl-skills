@@ -215,7 +215,7 @@ On failure: inspect logs (`gh run view --log-failed` for the failing run), fix t
 
 ## Step 7: Merge
 
-When the subagent verdict is `APPROVE` **and** all CI checks are green:
+When the review verdict is `APPROVE` (Step 4) **and** all CI checks are green:
 
 ```bash
 gh pr merge <pr> --merge --delete-branch
