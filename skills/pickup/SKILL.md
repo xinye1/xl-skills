@@ -6,7 +6,7 @@ argument-hint: "[all | <search text>]"
 
 # Pickup — load a saved handover into a fresh chat
 
-`handover` saves a self-contained prompt to `~/.claude/handovers/<repo>/`. This skill is the receiving half: it finds that file, loads it verbatim, and starts on it, so the user never copies text between sessions. The usual flow is `handover` → `/model <recommended>` → `/clear` → `/pickup`, all in one terminal. It works just as well days later, or after a reboot, in any new session in that repo.
+`handover` saves a self-contained prompt to `~/.claude/handovers/<repo>/`. This skill is the receiving half: it finds that file, loads it verbatim, and starts on it, so the user never copies text between sessions. The usual flow is `handover` → `/model <recommended>` (only when the handover's receipt says the chat is on the wrong model) → `/clear` → `/pickup`, all in one terminal. It works just as well days later, or after a reboot, in any new session in that repo.
 
 Keep the user able to see every step: what's waiting, which handover was loaded, where the file went, and anything that looks off. The handover carries context the user can't afford to lose, so it is never deleted, and it is never summarised on the way in.
 
@@ -16,11 +16,11 @@ Keep the user able to see every step: what's waiting, which handover was loaded,
 root="$HOME/.claude/handovers"
 c=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) && repo=$(basename "$(dirname "$c")") || repo=$(basename "$PWD")
 echo "repo: $repo  cwd: $PWD"
-for f in $(ls "$root/$repo"/*.md 2>/dev/null | sort -r); do
+ls -r "$root/$repo"/*.md 2>/dev/null | while IFS= read -r f; do
   echo "$(basename "$f") | $(sed -n 's/^title: //p' "$f" | head -1) | model $(sed -n 's/^model: //p' "$f" | head -1) | branch $(sed -n 's/^branch: //p' "$f" | head -1) | $(sed -n 's/^kind: //p' "$f" | head -1)"
 done
 echo "other repos waiting:"; for d in "$root"/*/; do n=$(ls "$d"*.md 2>/dev/null | wc -l); [ "$n" -gt 0 ] && [ "$(basename "$d")" != "$repo" ] && echo "  $(basename "$d"): $n"; done
-echo "recently picked up:"; ls "$root/$repo/picked-up"/*.md 2>/dev/null | sort -r | head -3 | xargs -r -n1 basename
+echo "recently picked up:"; ls -r "$root/$repo/picked-up"/*.md 2>/dev/null | head -3 | while IFS= read -r f; do basename "$f"; done
 ```
 
 Files named `YYYY-MM-DD-HHMM-…` sort newest first by name. Pending handovers sit directly in `<repo>/`; used ones are in `<repo>/picked-up/`.
@@ -40,27 +40,27 @@ Arguments passed: "$ARGUMENTS" (empty quotes mean none). They decide the path:
 
 Read the whole file with the Read tool. Never summarise it or skim it, and never read only the frontmatter. Then run the checks the user would want before trusting it:
 
-- **Staleness:** `git log --oneline --since="<written>" | wc -l` in this repo. If commits have landed since the handover was written, its status section may be out of date. Say how many, and verify the claims that matter before relying on them.
+- **Staleness:** count commits since the handover was written, on this checkout (`git log --oneline --since="<written>" | wc -l`) and, when the frontmatter `branch` exists here (`git rev-parse --verify --quiet <branch>`, or `origin/<branch>`), on that branch too. A handover written for another worktree's branch can go stale without touching this checkout's history. If commits have landed, its status section may be out of date: say how many and on which ref, and verify the claims that matter before relying on them. For a `mid-phase` handover, also run `git status --short` (in its `cwd` if that exists) and compare it with the uncommitted work the handover lists, since a commit count can't show edits that were never committed.
 - **Location:** if the frontmatter `cwd` differs from `$PWD` (another worktree, or a new machine), check that the plan path the handover names exists. If it doesn't, tell the user before starting, and ask where the plan lives now.
 - **Model:** compare the frontmatter `model` with this chat's model. The handover's own first-action check handles a mismatch; the receipt shows it early.
 
 ## Step 4: Archive it, show the receipt
 
-Only after the full read succeeded, stamp the file and move it. Nothing is deleted.
+Only after the full read succeeded, move the file, then stamp the archived copy. Nothing is deleted. Moving first means a failed move leaves the file exactly as it was, still `pending`.
 
-1. Stamp it with the Edit tool (portable, unlike `sed -i`). Replace the frontmatter line `status: pending` with:
+1. Move it, and prove the move worked:
+   ```bash
+   f="<pending file>"; a="$(dirname "$f")/picked-up"; mkdir -p "$a"
+   mv -n "$f" "$a/" && test -f "$a/$(basename "$f")" && ! test -e "$f" && echo "ok: archived" || echo "FAIL: not archived"
+   ```
+2. Only on `ok: archived`, stamp the archived file with the Edit tool (portable, unlike `sed -i`). Replace the frontmatter line `status: pending` with:
    ```yaml
    status: picked-up
    picked_up: <YYYY-MM-DDTHH:MM, local time>
    picked_up_by: ${CLAUDE_SESSION_ID}
    ```
-2. Move it, and prove the move worked:
-   ```bash
-   f="<pending file>"; a="$(dirname "$f")/picked-up"; mkdir -p "$a"
-   mv -n "$f" "$a/" && test -f "$a/$(basename "$f")" && ! test -e "$f" && echo "ok: archived" || echo "FAIL: not archived"
-   ```
 
-Skip the stamp and the move when the chosen file is already in `picked-up/` (a reload). If archiving fails, say so. The file stays in the pending queue, which is harmless: it will be offered again next time.
+Skip both when the chosen file is already in `picked-up/` (a reload). If the move fails, say so and skip the stamp. The usual cause is that `picked-up/` already holds a file with the same name, which `mv -n` never overwrites. The file stays in the pending queue, untouched, which is harmless: it will be offered again next time.
 
 Then print the receipt, with every line backed by a check above:
 
@@ -69,7 +69,7 @@ Then print the receipt, with every line backed by a check above:
   file      ~/.claude/handovers/<repo>/picked-up/<name>.md   (<L> lines, read in full)
   written   <YYYY-MM-DD HH:MM> (<age>) · branch <branch> · <kind> · from session <from_session>
   model     handover wants <model> · this chat is on <current>   ✓ | ⚠ switch with /model
-  fresh?    ✓ no commits since written | ⚠ <N> commits since written; re-verifying status
+  fresh?    ✓ no commits since written | ⚠ <N> commits since written on <ref>; re-verifying status
   archived  ✓ moved to picked-up/ (reload any time: /pickup <search text>)
   waiting   <W> other handover(s) for <repo>
 ```
