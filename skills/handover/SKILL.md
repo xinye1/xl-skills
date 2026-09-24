@@ -11,7 +11,7 @@ This skill exists for one moment: a multi-phase plan is partway through, context
 
 **What this skill is NOT:** it does not execute the next phase. It does not keep going "just to finish this one file". It saves the prompt to a handover file, proves the save, and stops. The point is to get out of the current chat cleanly so the next chat starts with tight, relevant context.
 
-**The hop, end to end (CLI):** `handover` saves the prompt to `~/.claude/handovers/<repo>/` → the user runs `/model <recommended>` only if the receipt shows a model mismatch, then `/clear` in the same terminal → `/pickup` in the fresh chat loads the file as its brief. Nothing is copied by hand. `/clear` keeps the old chat on disk (resumable with `/resume`), and the handover file doesn't depend on it: it survives a reboot and waits until someone picks it up, in any later session in that repo. This works like `/compact`, except the user can see and choose exactly what carries over.
+**The hop, end to end (CLI):** `handover` saves the prompt to `~/.claude/handovers/<repo>/` → the user runs `/clear` in the same terminal → `/model <recommended>` only if the receipt shows a model mismatch → `/pickup` in the fresh chat loads the file as its brief. Nothing is copied by hand. `/clear` goes first because until it runs, any message re-sends the whole old chat, and after a `/model` switch that re-send misses the prompt cache (the cache is per model) and is billed in full. After `/clear` a stray message costs next to nothing. `/clear` keeps the old chat on disk (resumable with `/resume`), and the handover file doesn't depend on it: it survives a reboot and waits until someone picks it up, in any later session in that repo. After a reboot or a closed terminal there is nothing to clear: start `claude --model <recommended>` in the repo, then `/pickup`. This works like `/compact`, except the user can see and choose exactly what carries over.
 
 ## The two handover shapes
 
@@ -299,22 +299,28 @@ Any `FAIL`: fix the file and re-run the check. Never show a green receipt over a
 ✓ Handover saved — <title>
   file      ~/.claude/handovers/<repo>/<name>.md
   checks    ✓ <L> lines re-read from disk  ✓ execution model inlined  ✓ no unfilled placeholders  ✓ complete to the end
-  model     this phase wants <recommended> · this chat is on <current>   ✓ nothing to switch | ⚠ switch first
+  model     this phase wants <recommended> · this chat is on <current>   ✓ nothing to switch | ⚠ switch after /clear
   waiting   <W> handover(s) for <repo>
   this chat ${CLAUDE_SESSION_ID}  (optional: claude --resume <id>; the file stands alone)
 
-Next, in this terminal:
-  1. /model <recommended>   ← only when the model line shows ⚠
-  2. /clear                 ← this chat stays saved on disk
+Next, in this terminal (/clear first: until then, any message re-sends this whole chat):
+  1. /clear                 ← this chat stays saved on disk
+  2. /model <recommended>   ← only when the model line shows ⚠
   3. /pickup
+
+Closing the terminal instead? Later, in <cwd>:  claude --model <recommended>, then /pickup
 ```
 
-**The `model` line decides whether step 1 is printed.** Compare the recommended model with the model you are running as (from your environment / system context, the same source the handover's own first-action check reads), by tier: `haiku` < `sonnet` < `opus` < `fable`.
+**Why `/clear` comes before `/model`.** Neither command sends anything, so what matters is the next message. Before `/clear`, a stray message re-sends the whole old chat. On the same model most of it is a cheap cache hit. After `/model` it is a full-price read, because the prompt cache is per model, and the new model is often the pricier one. With `/clear` first, a stray message only costs the nearly empty fresh chat. `/clear` also wipes the receipt from the screen, and `/pickup` covers for that: it reads the handover's `model` field and stops before loading if the chat is on a weaker model.
+
+**The `model` line decides whether the `/model` step is printed.** Compare the recommended model with the model you are running as (from your environment / system context, the same source the handover's own first-action check reads), by tier: `haiku` < `sonnet` < `opus` < `fable`.
 - **Same tier:** the line ends `✓ nothing to switch`, and the `/model` step is left out (print `/clear` then `/pickup` as steps 1 and 2). The line stays so the user can see why there is no `/model` step.
-- **This chat is weaker than recommended:** `⚠ switch first`, and print the `/model` step. Without it the fresh chat stops at its own model check and asks.
+- **This chat is weaker than recommended:** `⚠ switch after /clear`, and print the `/model` step. Without it, `/pickup` stops and asks for the switch.
 - **This chat is stronger than recommended:** `⚠ higher than this phase needs`, and print the `/model` step marked `(optional, cheaper)`. The handover works on the stronger model, but the phase doesn't need it.
 
 If you can't tell which model you are running as, say so on the model line and print the `/model` step.
+
+**The closing-the-terminal line** covers a reboot, or a hop left for another day. Nothing needs clearing then, because closing the terminal already ends the chat and leaves it on disk. It uses `claude --model`, which sets the model for that one session. `/model` also saves the choice as the default for every new session, so one `/model fable` would make each later `claude` start on `fable`. Fill `<cwd>` with the working directory from the frontmatter. Print the line even when the models match, so it always shows which model to start on.
 
 Then stop. Do not print the handover body, and do not offer to start the next phase here. If the user wants to carry on in this chat anyway, they'll say so, but the default after a handover is always: this chat is done.
 
@@ -337,7 +343,8 @@ Then stop. Do not print the handover body, and do not offer to start the next ph
 | Printing the handover body in the chat | In a terminal, that means drag-selecting dozens of lines, and a copy that goes astray loses the notes. The file is the handover and `/pickup` loads it; the chat gets the receipt only. |
 | A receipt without the from-disk check | "Saved ✓" from memory of the Write call is a claim, not evidence. The user is about to `/clear` on the strength of that tick, so it must come from re-reading the file. |
 | Saving to `/tmp` or the repo's working tree | `/tmp` can be wiped by a reboot, and a working-tree file gets swept up by `git add` or deleted by a cleanup. The handover queue lives in `~/.claude/handovers/`. |
-| A receipt with no next steps | The user runs `/clear` → `/pickup` (and `/model` when needed) straight from the receipt. Leave a step out and the fresh chat starts on the wrong model or never loads the handover. |
+| A receipt with no next steps | The user runs `/clear` → `/pickup` (with `/model` between them when needed) straight from the receipt. Leave a step out and the fresh chat starts on the wrong model or never loads the handover. |
+| Putting `/model` before `/clear` | Until `/clear` runs, any message re-sends the whole old chat. After a model switch that re-send misses the per-model prompt cache, so one stray "ok" is billed at full price for the entire context. Clear first, then switch. |
 | Printing the `/model` step when the chat is already on the recommended model | The user can't tell whether it matters, so they stop trusting the receipt's steps. Compare first: print `/model` only on a mismatch, and keep the `model` line so the missing step is explained. |
 
 ## Composition with other skills
