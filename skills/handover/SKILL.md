@@ -323,6 +323,7 @@ Then stop. Do not print the handover body, and do not offer to start the next ph
 | Anti-pattern | Why it burns the user |
 |---|---|
 | Writing the handover before verifying exit criteria | A handover that claims a red phase is green corrupts the next chat's assumptions for its entire duration. Either verify, or mark as mid-phase with honest in-progress state. |
+| Acceptance criteria that list only what the check might *read*, not "the check never ran" | Criteria for a scheduled or future check (a nightly run, a soak, a deploy verification) must name what to do if the run never reaches the check: the run dies upstream, the input is missing, or the value is absent. Measured 2026-09-24: a night-2 handover said "same value = correct, increase = fault, decrease = deleted"; the night died upstream and the check had nothing to test. The next chat had to invent the ruling ("not tested, n=0 — not a pass"). Give that outcome its own line, and say whether it blocks the next step. |
 | "See the previous conversation for details" | The next chat has no access to this chat. If it's not in the handover, it doesn't exist. |
 | Summarising the plan instead of referencing it | The plan file is authoritative. The handover points at it; it does not replace it. Rewriting the plan in the handover invites drift. |
 | Trimming the template to be "more concise" | Every section is load-bearing. Trimming always seems harmless in the moment and always bites the next chat. |
