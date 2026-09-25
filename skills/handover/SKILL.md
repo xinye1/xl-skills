@@ -125,7 +125,7 @@ Fill every section. For mid-phase handovers, the status lists what's done vs. ou
 
 This phase is meant to be orchestrated on **`<recommended orchestrator model>`** (the orchestrator decomposes tasks, coordinates subagents, and runs integration validation — not a job for `haiku`).
 
-**As your very first action, before reading further or doing any work:** check the model you are running as (shown in your environment / system context). Capability order is `haiku` < `sonnet` < `opus` < `fable`. If you are running on something *weaker* than `<recommended orchestrator model>`, **stop and ask the user**, then wait for their reply before continuing:
+**As your very first action, before reading further or doing any work:** check the model you are running as (shown in your environment / system context). Capability order is `haiku` < `sonnet` < `opus` < `fable`, and an Opus older than 5 ranks with `sonnet`. If you are running on something *weaker* than `<recommended orchestrator model>`, **stop and ask the user**, then wait for their reply before continuing:
 
 > This handover recommends orchestrating on `<recommended orchestrator model>`, but this chat is running on `<your current model>`. Switch with `/model` (recommended), or reply "continue" to proceed on `<your current model>` anyway.
 
@@ -215,7 +215,7 @@ Goals, reasoning, and constraints — no numbered procedure. The "why" in the Go
 
 > **⚠️ Set your model to `<recommended orchestrator model>` before continuing.** If this chat is on a weaker model, switch with `/model` now.
 
-**As your very first action:** check the model you are running as. Capability order is `haiku` < `sonnet` < `opus` < `fable`. If you are on something weaker than `<recommended orchestrator model>`, stop and ask the user to switch with `/model` before doing any work. If they decline: on `opus` 5 or later (when `fable` was recommended) this prompt's style still fits — proceed once they explicitly say "continue"; on `sonnet` or an older `opus`, do not proceed on this prompt — a goal-only prompt lets a mid-tier orchestrator drift, so ask them to have it regenerated in the prescriptive style (the authoring chat's `handover` skill, Template A); on `haiku` or an unrecognised model there is no valid template — ask them to switch to `sonnet`, `opus`, or `fable`, and never orchestrate on `haiku`.
+**As your very first action:** check the model you are running as. Capability order is `haiku` < `sonnet` < `opus` < `fable`, and an Opus older than 5 ranks with `sonnet`. If you are on something weaker than `<recommended orchestrator model>`, stop and ask the user to switch with `/model` before doing any work. If they decline: on `opus` 5 or later (when `fable` was recommended) this prompt's style still fits — proceed once they explicitly say "continue"; on `sonnet` or an older `opus`, do not proceed on this prompt — a goal-only prompt lets a mid-tier orchestrator drift, so ask them to have it regenerated in the prescriptive style (the authoring chat's `handover` skill, Template A); on `haiku` or an unrecognised model there is no valid template — ask them to switch to `sonnet`, `opus`, or `fable`, and never orchestrate on `haiku`.
 
 ## Goal
 
@@ -299,7 +299,7 @@ Any `FAIL`: fix the file and re-run the check. Never show a green receipt over a
 ✓ Handover saved — <title>
   file      ~/.claude/handovers/<repo>/<name>.md
   checks    ✓ <L> lines re-read from disk  ✓ execution model inlined  ✓ no unfilled placeholders  ✓ complete to the end
-  model     this phase wants <recommended> · this chat is on <current>   ✓ nothing to switch | ⚠ switch after /clear
+  model     this phase wants <recommended> · this chat is on <current>   ✓ nothing to switch | ⚠ switch after /clear | ⚠ higher than this phase needs | ⚠ can't tell
   waiting   <W> handover(s) for <repo>
   this chat ${CLAUDE_SESSION_ID}  (optional: claude --resume <id>; the file stands alone)
 
@@ -313,12 +313,12 @@ Closing the terminal instead? Later, in <cwd>:  claude --model <recommended>, th
 
 **Why `/clear` comes before `/model`.** Neither command sends anything, so what matters is the next message. Before `/clear`, a stray message re-sends the whole old chat. On the same model most of it is a cheap cache hit. After `/model` it is a full-price read, because the prompt cache is per model, and the new model is often the pricier one. With `/clear` first, a stray message only costs the nearly empty fresh chat. `/clear` also wipes the receipt from the screen, and `/pickup` covers for that: it reads the handover's `model` field and stops before loading if the chat is on a weaker model.
 
-**The `model` line decides whether the `/model` step is printed.** Compare the recommended model with the model you are running as (from your environment / system context, the same source the handover's own first-action check reads), by tier: `haiku` < `sonnet` < `opus` < `fable`.
+**The `model` line decides whether the `/model` step is printed.** Compare the recommended model with the model you are running as (from your environment / system context, the same source the handover's own first-action check reads), by tier: `haiku` < `sonnet` < `opus` < `fable`, with an Opus older than 5 ranked as `sonnet` (it is mid-tier, the reason it gets Template A).
 - **Same tier:** the line ends `✓ nothing to switch`, and the `/model` step is left out (print `/clear` then `/pickup` as steps 1 and 2). The line stays so the user can see why there is no `/model` step.
 - **This chat is weaker than recommended:** `⚠ switch after /clear`, and print the `/model` step. Without it, `/pickup` stops and asks for the switch.
 - **This chat is stronger than recommended:** `⚠ higher than this phase needs`, and print the `/model` step marked `(optional, cheaper)`. The handover works on the stronger model, but the phase doesn't need it.
 
-If you can't tell which model you are running as, say so on the model line and print the `/model` step.
+If you can't tell which model you are running as, end the line `⚠ can't tell` and print the `/model` step.
 
 **The closing-the-terminal line** covers a reboot, or a hop left for another day. Nothing needs clearing then, because closing the terminal already ends the chat and leaves it on disk. It uses `claude --model`, which sets the model for that one session. `/model` also saves the choice as the default for every new session, so one `/model fable` would make each later `claude` start on `fable`. Fill `<cwd>` with the working directory from the frontmatter. Print the line even when the models match, so it always shows which model to start on.
 

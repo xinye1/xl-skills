@@ -36,7 +36,7 @@ Arguments passed: "$ARGUMENTS" (empty quotes mean none). They decide the path:
 - **`all`.** List pending handovers across every repo, grouped by repo, then pick the same way.
 - **Any other text.** Match it against filenames and titles in this repo's pending and `picked-up/` files, then every repo's if there's no match. One match loads; several means the user picks. This is how an already-used handover gets reloaded.
 
-**Model gate, before loading.** Take the chosen file's `model` field (the Step 1 listing already shows it) and compare it, by tier (`haiku` < `sonnet` < `opus` < `fable`), with the model you are running as:
+**Model gate, before loading.** Take the chosen file's `model` field (the Step 1 listing already shows it) and compare it, by tier (`haiku` < `sonnet` < `opus` < `fable`, with an Opus older than 5 ranked as `sonnet`), with the model you are running as:
 - **This chat is weaker:** stop here. Don't read the rest of the file, and don't archive it. Say:
   > This handover wants `<model>`, but this chat is on `<current>`. Run `/model <model>`, then `/pickup <file name without .md>`. Or reply "continue" to load it on `<current>` anyway.
 
@@ -75,7 +75,7 @@ Then print the receipt, with every line backed by a check above:
 ✓ Picked up — <title>
   file      ~/.claude/handovers/<repo>/picked-up/<name>.md   (<L> lines, read in full)
   written   <YYYY-MM-DD HH:MM> (<age>) · branch <branch> · <kind> · from session <from_session>
-  model     handover wants <model> · this chat is on <current>   ✓ | ⚠ higher than needed | ⚠ loaded on a weaker model at your request
+  model     handover wants <model> · this chat is on <current>   ✓ | ⚠ higher than needed | ⚠ loaded on a weaker model at your request | ⚠ can't tell which model this chat is on
   fresh?    ✓ no commits since written | ⚠ <N> commits since written on <ref>; re-verifying status
   archived  ✓ moved to picked-up/ (reload any time: /pickup <search text>)
   waiting   <W> other handover(s) for <repo>
