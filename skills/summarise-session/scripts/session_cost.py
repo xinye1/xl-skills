@@ -594,8 +594,14 @@ def render_markdown(rows, total, footnotes):
         )
 
     if total["total_source"] == "claude_code" and total["unattributed"] is not None:
+        # Claude Code's meter prices every call, so the gap also holds the cost
+        # of any row this script couldn't price; say so rather than overstate
+        # the calls that never reached a transcript.
+        gap_label = "not attributed to an agent"
+        if total["excludes_unpriced"]:
+            gap_label += " (incl. unpriced rows)"
         lines.append(
-            f"| not attributed to an agent | – | – | – | – | – | "
+            f"| {gap_label} | – | – | – | – | – | "
             f"{format_cost(total['unattributed'])} |"
         )
 
@@ -603,8 +609,8 @@ def render_markdown(rows, total, footnotes):
         total_cost_display = f"{format_cost(total['cost'])} (Claude Code's own meter)"
     else:
         total_cost_display = f"≥ {format_cost(total['cost'])} (transcripts)"
-    if total["excludes_unpriced"]:
-        total_cost_display += " (excl. unpriced rows)"
+        if total["excludes_unpriced"]:
+            total_cost_display += " (excl. unpriced rows)"
     lines.append(
         f"| **Total** |  | {human_tokens(total['input'])} | {human_tokens(total['output'])} | "
         f"{human_tokens(total['cache_write'])} | {human_tokens(total['cache_read'])} | "
