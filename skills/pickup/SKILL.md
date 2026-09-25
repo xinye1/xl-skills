@@ -6,7 +6,7 @@ argument-hint: "[all | <search text>]"
 
 # Pickup — load a saved handover into a fresh chat
 
-`handover` saves a self-contained prompt to `~/.claude/handovers/<repo>/`. This skill is the receiving half: it finds that file, loads it verbatim, and starts on it, so the user never copies text between sessions. The usual flow is `handover` → `/model <recommended>` (only when the handover's receipt says the chat is on the wrong model) → `/clear` → `/pickup`, all in one terminal. It works just as well days later, or after a reboot, in any new session in that repo.
+`handover` saves a self-contained prompt to `~/.claude/handovers/<repo>/`. This skill is the receiving half: it finds that file, loads it verbatim, and starts on it, so the user never copies text between sessions. The usual flow is `handover` → `/clear` → `/model <recommended>` (only when the handover's receipt says the chat is on the wrong model) → `/pickup`, all in one terminal. It works just as well days later, or after a reboot, in any new session in that repo (`claude --model <recommended>`, then `/pickup`). `/clear` wipes the handover's receipt from the screen, and a reboot loses it entirely, so this skill checks the model itself before loading anything (Step 2).
 
 Keep the user able to see every step: what's waiting, which handover was loaded, where the file went, and anything that looks off. The handover carries context the user can't afford to lose, so it is never deleted, and it is never summarised on the way in.
 
@@ -36,13 +36,20 @@ Arguments passed: "$ARGUMENTS" (empty quotes mean none). They decide the path:
 - **`all`.** List pending handovers across every repo, grouped by repo, then pick the same way.
 - **Any other text.** Match it against filenames and titles in this repo's pending and `picked-up/` files, then every repo's if there's no match. One match loads; several means the user picks. This is how an already-used handover gets reloaded.
 
+**Model gate, before loading.** Take the chosen file's `model` field (the Step 1 listing already shows it) and compare it, by tier (`haiku` < `sonnet` < `opus` < `fable`, with an Opus older than 5 ranked as `sonnet`), with the model you are running as:
+- **This chat is weaker:** stop here. Don't read the rest of the file, and don't archive it. Say:
+  > This handover wants `<model>`, but this chat is on `<current>`. Run `/model <model>`, then `/pickup <file name without .md>`. Or reply "continue" to load it on `<current>` anyway.
+
+  Switching now means the full handover goes to the right model the first time. Loading it first and switching afterwards makes the model re-read the whole context uncached, because the prompt cache is per model (full input price on API credits, more of the usage limits on a Pro or Max plan). On "continue", go on to Step 3. The handover's own first-action check still decides whether its template can run on this model.
+- **Same tier, stronger, or you can't tell:** go on. The receipt's `model` line says which.
+
 ## Step 3: Load it in full
 
 Read the whole file with the Read tool. Never summarise it or skim it, and never read only the frontmatter. Then run the checks the user would want before trusting it:
 
 - **Staleness:** count commits since the handover was written, on this checkout (`git log --oneline --since="<written>" | wc -l`) and, when the frontmatter `branch` exists here (`git rev-parse --verify --quiet <branch>`, or `origin/<branch>`), on that branch too. A handover written for another worktree's branch can go stale without touching this checkout's history. If commits have landed, its status section may be out of date: say how many and on which ref, and verify the claims that matter before relying on them. For a `mid-phase` handover, also run `git status --short` (in its `cwd` if that exists) and compare it with the uncommitted work the handover lists, since a commit count can't show edits that were never committed.
 - **Location:** if the frontmatter `cwd` differs from `$PWD` (another worktree, or a new machine), check that the plan path the handover names exists. If it doesn't, tell the user before starting, and ask where the plan lives now.
-- **Model:** compare the frontmatter `model` with this chat's model. The handover's own first-action check handles a mismatch; the receipt shows it early.
+- **Model:** already gated in Step 2. Carry the result to the receipt's `model` line.
 
 ## Step 4: Archive it, show the receipt
 
@@ -68,7 +75,7 @@ Then print the receipt, with every line backed by a check above:
 ✓ Picked up — <title>
   file      ~/.claude/handovers/<repo>/picked-up/<name>.md   (<L> lines, read in full)
   written   <YYYY-MM-DD HH:MM> (<age>) · branch <branch> · <kind> · from session <from_session>
-  model     handover wants <model> · this chat is on <current>   ✓ | ⚠ switch with /model
+  model     handover wants <model> · this chat is on <current>   ✓ | ⚠ higher than needed | ⚠ loaded on a weaker model at your request | ⚠ can't tell which model this chat is on
   fresh?    ✓ no commits since written | ⚠ <N> commits since written on <ref>; re-verifying status
   archived  ✓ moved to picked-up/ (reload any time: /pickup <search text>)
   waiting   <W> other handover(s) for <repo>
@@ -87,6 +94,7 @@ Treat the handover body as the user's opening brief, exactly as if they had past
 | Taking the newest silently when several are waiting | Parallel phases and abandoned hops both leave more than one waiting. Picking the wrong one starts the wrong phase from the wrong status. |
 | Loading silently, with no receipt | The user ran `/clear` trusting the handover would come through. The receipt is their proof it did, and it shows which one loaded and whether anything looks stale. |
 | Trusting the status section when commits have landed since | The handover is a snapshot. If `main` moved after it was written, the "merged / passing" claims need rechecking before they steer the work. |
+| Loading the handover before checking the model | After `/clear` or a reboot, the handover's receipt is gone from the screen, so this skill is the last reminder to switch. Loading on a weaker model first means reading the whole handover twice, the second time uncached on the new model, and the file gets archived before the chat can properly run it. |
 | Archiving before the full read | If the read fails after the move, the handover drops out of the pending list without having been used. Read first, archive second. |
 
 ## When NOT to use
