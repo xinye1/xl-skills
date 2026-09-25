@@ -11,6 +11,18 @@ One API response is written to the transcript as one line per content
 block, each repeating the identical full `message.usage` object; this
 script dedupes by `message.id` so usage is counted once per turn.
 
+Transcripts are also not the whole story: some billed calls (notably in
+subagent transcripts, which are written mid-stream) never land a final,
+fully-counted line, and Claude Code itself writes a `cost-state` record
+with its own `totalCostUSD` into the main transcript when a session ends
+(/clear, exit, resume-switch). When that record exists and the session
+has genuinely ended (no assistant turn follows it), it is the authoritative
+total for this session -- more reliable than summing the transcripts -- and
+the Total row uses it, with the transcript-priced per-agent rows relabelled
+as lower bounds and the gap surfaced as its own row. For a live session, or
+one resumed past its last cost-state, there is no authoritative total yet;
+the Total row is the transcript sum, marked as a floor.
+
 Usage:
     session_cost.py [<session-id-or-path.jsonl>] [--json] [--prices PATH]
 
@@ -44,15 +56,27 @@ DATE_SUFFIX_RE = re.compile(r"^(?P<base>.+)-\d{8}$")
 
 def load_turns(path):
     """Read one transcript .jsonl file and return a list of per-turn usage
-    dicts, deduped by message.id (a message split across N content-block
-    lines repeats the same message.id and the same full usage object on
-    all N lines -- counting every line would multiply usage by the block
-    count). Skips unparseable lines, non-assistant lines, and the
-    "<synthetic>" placeholder model (zero usage, non-billable)."""
+    dicts, deduped by message.id.
+
+    A message split across N content-block lines repeats the same
+    message.id and the same full usage object on all N lines -- counting
+    every line would multiply usage by the block count, so only one line
+    per id is kept. Which line to keep differs by transcript kind: main
+    transcripts write one complete line per message.id, but *subagent*
+    transcripts are written mid-stream -- several lines can share an id,
+    with the early ones carrying `stop_reason: null` and a partial
+    `usage.output_tokens`, and only the final line (when present) carrying
+    the full count. Input/cache fields are set at stream start and don't
+    grow, so only output_tokens actually varies across an id's lines.
+    Keeping the *first* line therefore undercounts output for subagents
+    (seen as low as ~8% of the true figure); instead, per message.id, keep
+    the line with the largest output_tokens, ties going to the later line.
+    """
     turns = []
     if not path.is_file():
         return turns
-    seen_ids = set()
+    best_by_id = {}
+    order = []
     try:
         lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
     except OSError:
@@ -71,9 +95,8 @@ def load_turns(path):
         if not isinstance(msg, dict):
             continue
         mid = msg.get("id")
-        if not mid or mid in seen_ids:
+        if not mid:
             continue
-        seen_ids.add(mid)
         model = msg.get("model")
         if not model or model == "<synthetic>":
             continue
@@ -86,16 +109,24 @@ def load_turns(path):
         speed = usage.get("speed") or "standard"
         if speed not in ("standard", "fast"):
             speed = "standard"
-        turns.append({
+        output = usage.get("output_tokens", 0) or 0
+        turn = {
             "model": model,
             "speed": speed,
             "input": usage.get("input_tokens", 0) or 0,
-            "output": usage.get("output_tokens", 0) or 0,
+            "output": output,
             "cache_write": usage.get("cache_creation_input_tokens", 0) or 0,
             "cc_5m": cc.get("ephemeral_5m_input_tokens", 0) or 0,
             "cc_1h": cc.get("ephemeral_1h_input_tokens", 0) or 0,
             "cache_read": usage.get("cache_read_input_tokens", 0) or 0,
-        })
+        }
+        prev = best_by_id.get(mid)
+        if prev is None:
+            order.append(mid)
+            best_by_id[mid] = turn
+        elif output >= prev["output"]:
+            best_by_id[mid] = turn
+    turns = [best_by_id[mid] for mid in order]
     return turns
 
 
@@ -123,6 +154,72 @@ def aggregate_turns(turns):
             b["cc_5m"] += t["cc_5m"]
         b["messages"] += 1
     return agg, unsplit_total
+
+
+# --------------------------------------------------------------------------
+# Claude Code's own cost meter (cost-state records)
+# --------------------------------------------------------------------------
+
+def find_cost_state(path):
+    """Scan the main transcript for the last `cost-state` record Claude
+    Code writes on session end (/clear, exit, resume-switch).
+
+    Returns (cost_state, ended, stale_time):
+      - cost_state: the last cost-state record (dict), or None if the
+        transcript has none.
+      - ended: True only if a cost-state exists AND no `assistant` line
+        follows it -- i.e. the session genuinely closed with nothing
+        billed afterwards, so cost_state["totalCostUSD"] is authoritative.
+      - stale_time: when a cost-state exists but assistant turns follow it
+        (a resumed session -- the meter is stale), the timestamp of the
+        transcript line immediately before the cost-state record, as the
+        closest available wall-clock proxy (cost-state records carry no
+        timestamp of their own, only a `startTime` for the tracking
+        window). None when there's no cost-state, or it isn't stale.
+    """
+    if not path.is_file():
+        return None, False, None
+    try:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return None, False, None
+
+    records = []
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            rec = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(rec, dict):
+            records.append(rec)
+
+    last_cs_pos = None
+    last_cs = None
+    for pos, rec in enumerate(records):
+        if rec.get("type") == "cost-state":
+            last_cs_pos = pos
+            last_cs = rec
+
+    if last_cs is None:
+        return None, False, None
+
+    assistant_after = any(
+        r.get("type") == "assistant" for r in records[last_cs_pos + 1:]
+    )
+    ended = not assistant_after
+
+    stale_time = None
+    if not ended:
+        for r in reversed(records[:last_cs_pos]):
+            ts = r.get("timestamp")
+            if isinstance(ts, str):
+                stale_time = ts
+                break
+
+    return last_cs, ended, stale_time
 
 
 # --------------------------------------------------------------------------
@@ -356,13 +453,41 @@ def build_report(session_path, prices):
     for label, agg, unsplit in find_subagents(session_path):
         rows.append((label, price_agent(agg, prices), unsplit))
 
+    transcript_total_cost = sum(r[1]["cost"] for r in rows if r[1]["cost"] is not None)
+    excludes_unpriced = any(r[1]["cost"] is None for r in rows)
+
+    cost_state, ended, stale_time = find_cost_state(session_path)
+    claude_code_total = None
+    if cost_state is not None:
+        claude_code_total = cost_state.get("totalCostUSD")
+
+    unattributed = None
+    if claude_code_total is not None:
+        unattributed = round(claude_code_total - transcript_total_cost, 10)
+
+    # The Total row uses Claude Code's own meter only when the session has
+    # genuinely ended and it doesn't undercut the transcript sum (a
+    # negative gap means the meter and the transcripts disagree in the
+    # other direction -- e.g. price drift -- so the transcript sum is the
+    # safer number to show, with a footnote explaining why).
+    if ended and claude_code_total is not None and unattributed is not None and unattributed >= -0.0005:
+        total_source = "claude_code"
+    else:
+        total_source = "transcripts"
+
     total = {
         "input": sum(r[1]["input"] for r in rows),
         "output": sum(r[1]["output"] for r in rows),
         "cache_write": sum(r[1]["cache_write"] for r in rows),
         "cache_read": sum(r[1]["cache_read"] for r in rows),
-        "cost": sum(r[1]["cost"] for r in rows if r[1]["cost"] is not None),
-        "excludes_unpriced": any(r[1]["cost"] is None for r in rows),
+        "cost": claude_code_total if total_source == "claude_code" else transcript_total_cost,
+        "excludes_unpriced": excludes_unpriced,
+        "claude_code_total": claude_code_total,
+        "transcript_total": transcript_total_cost,
+        "unattributed": unattributed,
+        "total_source": total_source,
+        "ended": ended,
+        "stale_time": stale_time,
     }
 
     unconfirmed_all = set()
@@ -382,6 +507,43 @@ def build_report(session_path, prices):
         f"Equivalent API cost at list prices as of {prices.get('as_of', '?')} "
         f"({prices.get('source', 'see references/prices.json')}); not a bill."
     )
+
+    if total_source == "claude_code":
+        footnotes.append(
+            "Total is Claude Code's own totalCostUSD for this session (its cost-state "
+            "record, written on session end); the per-agent and main-chat rows above are "
+            "transcript-priced floors -- some billed calls never reach any transcript, "
+            "which is what the 'not attributed to an agent' row captures."
+        )
+    elif cost_state is not None and claude_code_total is not None and unattributed is not None and unattributed < -0.0005:
+        footnotes.append(
+            f"Claude Code's own meter reports {format_cost(claude_code_total)} for this "
+            f"session, less than the transcript-priced sum ({format_cost(transcript_total_cost)}); "
+            "showing the transcript total in the Total row instead."
+        )
+    else:
+        note = (
+            "No authoritative total yet: Claude Code only saves its own cost-state "
+            "when a session ends (/clear, exit, resume-switch), and "
+        )
+        if cost_state is None:
+            note += "this transcript has none -- it's still live."
+        else:
+            note += (
+                "the last one here is stale (assistant turns follow it, from a "
+                "resumed session)"
+                + (f", recorded around {stale_time}" if stale_time else "")
+                + "."
+            )
+        note += (
+            " The Total row above is the transcript sum, a floor, and so is every "
+            "row in the table -- for the live "
+            "session's true total, check the status bar's $ figure. Transcripts "
+            "typically run 15-35% under it when subagents are used, 0-8% under "
+            "without."
+        )
+        footnotes.append(note)
+
     if unconfirmed_all:
         footnotes.append(
             "Uses unconfirmed prices (pending confirmation at launch) for: "
@@ -431,7 +593,16 @@ def render_markdown(rows, total, footnotes):
             f"{human_tokens(priced['cache_read'])} | {cost_display} |"
         )
 
-    total_cost_display = format_cost(total["cost"])
+    if total["total_source"] == "claude_code" and total["unattributed"] is not None:
+        lines.append(
+            f"| not attributed to an agent | – | – | – | – | – | "
+            f"{format_cost(total['unattributed'])} |"
+        )
+
+    if total["total_source"] == "claude_code":
+        total_cost_display = f"{format_cost(total['cost'])} (Claude Code's own meter)"
+    else:
+        total_cost_display = f"≥ {format_cost(total['cost'])} (transcripts)"
     if total["excludes_unpriced"]:
         total_cost_display += " (excl. unpriced rows)"
     lines.append(
@@ -466,6 +637,10 @@ def render_json(session_path, rows, total, footnotes, prices):
             for label, priced, _unsplit in rows
         ],
         "total": total,
+        "claude_code_total": total["claude_code_total"],
+        "transcript_total": total["transcript_total"],
+        "unattributed": total["unattributed"],
+        "total_source": total["total_source"],
         "footnotes": footnotes,
     }, indent=2)
 

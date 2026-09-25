@@ -4,7 +4,7 @@
     {
       "id": 1,
       "prompt": "is there anything worth highlighting during this session? apart from the required work done, anything around new discoveries, unexpected issues, improvements on the original plan, deviations, detours, how did the agents work, how many of them, how quick each subagent finished their work, how did you find the orchestration, any update to the plan, gotchas etc? provide a summary of things to close down this session.",
-      "expected_output": "A concise prose retrospective (NOT a code block / handover prompt) covering the meta-layer: subagent count + timing + tokens + quality + equivalent API cost (per-agent, main chat, and total, from scripts/session_cost.py — labelled as an equivalent API cost, never a bill), orchestration read, discoveries, deviations, gotchas, and a closing list of candidate follow-ups (issues to file / memories to save) surfaced for the user to action — not auto-actioned. Honest about anything that went sideways; no fabricated numbers.",
+      "expected_output": "A concise prose retrospective (NOT a code block / handover prompt) covering the meta-layer: subagent count + timing + tokens + quality + equivalent API cost (per-agent and main-chat rows from scripts/session_cost.py, labelled as lower-bound floors, plus a Total — Claude Code's own meter for an ended session, or the status bar's $ figure asked of the user for a live one — never a bill), orchestration read, discoveries, deviations, gotchas, and a closing list of candidate follow-ups (issues to file / memories to save) surfaced for the user to action — not auto-actioned. Honest about anything that went sideways; no fabricated numbers.",
       "files": []
     },
     {
@@ -16,7 +16,7 @@
     {
       "id": 3,
       "prompt": "how did the agents do this session?",
-      "expected_output": "A focused read on subagent / orchestration performance: per-agent table (task, time, tokens, tool count, outcome, equivalent API cost) plus a main-chat row and a Total row, where the data exists, plus a qualitative judgement on decomposition, dispatch order, and model-tier fit — including anything unflattering (re-dispatches, mis-claimed evidence, wrong tier). 'Not captured' for any figure not actually tracked, and 'not priced (total only)' rather than a guessed cost when only a single total_tokens figure is known — never an invented number or split.",
+      "expected_output": "A focused read on subagent / orchestration performance: per-agent table (task, time, tokens, tool count, outcome, equivalent API cost as a lower-bound floor) plus a main-chat row and a Total row — Claude Code's own meter for an ended session, or the status bar's $ figure for a live one, not the transcript sum by itself — where the data exists, plus a qualitative judgement on decomposition, dispatch order, and model-tier fit — including anything unflattering (re-dispatches, mis-claimed evidence, wrong tier). 'Not captured' for any figure not actually tracked, and 'not priced (total only)' rather than a guessed cost when only a single total_tokens figure is known — never an invented number or split.",
       "files": []
     }
   ]
