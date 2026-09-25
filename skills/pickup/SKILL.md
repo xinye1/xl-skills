@@ -40,7 +40,7 @@ Arguments passed: "$ARGUMENTS" (empty quotes mean none). They decide the path:
 - **This chat is weaker:** stop here. Don't read the rest of the file, and don't archive it. Say:
   > This handover wants `<model>`, but this chat is on `<current>`. Run `/model <model>`, then `/pickup <file name without .md>`. Or reply "continue" to load it on `<current>` anyway.
 
-  Switching now means the full handover goes to the right model the first time. Loading it first and switching afterwards makes the model re-read the whole context at full price, because the prompt cache is per model. On "continue", go on to Step 3. The handover's own first-action check still decides whether its template can run on this model.
+  Switching now means the full handover goes to the right model the first time. Loading it first and switching afterwards makes the model re-read the whole context uncached, because the prompt cache is per model (full input price on API credits, more of the usage limits on a Pro or Max plan). On "continue", go on to Step 3. The handover's own first-action check still decides whether its template can run on this model.
 - **Same tier, stronger, or you can't tell:** go on. The receipt's `model` line says which.
 
 ## Step 3: Load it in full
@@ -94,7 +94,7 @@ Treat the handover body as the user's opening brief, exactly as if they had past
 | Taking the newest silently when several are waiting | Parallel phases and abandoned hops both leave more than one waiting. Picking the wrong one starts the wrong phase from the wrong status. |
 | Loading silently, with no receipt | The user ran `/clear` trusting the handover would come through. The receipt is their proof it did, and it shows which one loaded and whether anything looks stale. |
 | Trusting the status section when commits have landed since | The handover is a snapshot. If `main` moved after it was written, the "merged / passing" claims need rechecking before they steer the work. |
-| Loading the handover before checking the model | After `/clear` or a reboot, the handover's receipt is gone from the screen, so this skill is the last reminder to switch. Loading on a weaker model first means reading the whole handover twice, the second time at full price on the new model, and the file gets archived before the chat can properly run it. |
+| Loading the handover before checking the model | After `/clear` or a reboot, the handover's receipt is gone from the screen, so this skill is the last reminder to switch. Loading on a weaker model first means reading the whole handover twice, the second time uncached on the new model, and the file gets archived before the chat can properly run it. |
 | Archiving before the full read | If the read fails after the move, the handover drops out of the pending list without having been used. Read first, archive second. |
 
 ## When NOT to use
