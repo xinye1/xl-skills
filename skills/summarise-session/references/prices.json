@@ -1,0 +1,89 @@
+{
+  "as_of": "2026-09-25",
+  "source": "claude-api skill: Current Models table (cached 2026-06-24) for input/output; shared/prompt-caching.md for the cache-write/cache-read multipliers (5m write = 1.25x input, 1h write = 2x input, read = 0.1x input, except Claude Fable 5.1 reads at 0.025x / $0.25 per MTok); shared/model-migration.md \"Migrating to Claude Opus 5.5\" and the skill's Fast Mode quick reference for overrides",
+  "notes": "$/MTok (per million tokens). Equivalent API list price at the given as_of date, not a bill (the user is on a subscription). cache_write_5m/cache_write_1h are prompt-caching write rates by TTL; cache_read is the prompt-caching read rate. claude-opus-5-5's cache_write_5m/cache_write_1h are derived from the standard 1.25x/2x-of-input multiplier, not stated outright in the source (which gives input/output/cache_read explicitly and says the model is still launching) -- treat as unconfirmed until the model ships. claude-opus-5-5's cache_read ($0.20) is an explicit override, not the standard 0.1x-of-input multiplier (0.1x would be $0.40). claude-fable-5-1 is the only model with a special (0.025x) cache-read multiplier; claude-fable-5 uses the standard 0.1x. Fast mode (usage.speed == \"fast\") is a Claude API research preview restricted to claude-opus-5, claude-opus-5-5, and claude-opus-4-8, and only charges list price when speed == \"standard\" (the default) -- fast-mode rates are documented (as a straight 2x of standard input/output) for claude-opus-5 ($10/$50) and, provisionally, claude-opus-5-5 ($8/$40, explicitly flagged in the source as unconfirmed until launch); no fast-mode price is documented anywhere in the source for claude-opus-4-8, so none is recorded here -- a claude-opus-4-8 turn with speed == \"fast\" cannot be priced and should be flagged unknown rather than guessed.",
+  "models": {
+    "claude-haiku-4-5": {
+      "input": 1,
+      "output": 5,
+      "cache_write_5m": 1.25,
+      "cache_write_1h": 2,
+      "cache_read": 0.10
+    },
+    "claude-sonnet-5": {
+      "input": 2,
+      "output": 10,
+      "cache_write_5m": 2.50,
+      "cache_write_1h": 4,
+      "cache_read": 0.20
+    },
+    "claude-opus-5-5": {
+      "input": 4,
+      "output": 20,
+      "cache_write_5m": 5,
+      "cache_write_1h": 8,
+      "cache_read": 0.20,
+      "unconfirmed": ["cache_write_5m", "cache_write_1h"],
+      "fast_mode": {
+        "input": 8,
+        "output": 40,
+        "unconfirmed": true,
+        "note": "2x standard; source explicitly says fast-mode docs flip after launch, confirm before quoting"
+      }
+    },
+    "claude-fable-5-1": {
+      "input": 10,
+      "output": 50,
+      "cache_write_5m": 12.50,
+      "cache_write_1h": 20,
+      "cache_read": 0.25
+    },
+    "claude-opus-5": {
+      "input": 5,
+      "output": 25,
+      "cache_write_5m": 6.25,
+      "cache_write_1h": 10,
+      "cache_read": 0.50,
+      "fast_mode": {
+        "input": 10,
+        "output": 50,
+        "note": "2x standard; research preview, Claude API only"
+      }
+    },
+    "claude-fable-5": {
+      "input": 10,
+      "output": 50,
+      "cache_write_5m": 12.50,
+      "cache_write_1h": 20,
+      "cache_read": 1.00
+    },
+    "claude-opus-4-8": {
+      "input": 5,
+      "output": 25,
+      "cache_write_5m": 6.25,
+      "cache_write_1h": 10,
+      "cache_read": 0.50
+    },
+    "claude-opus-4-7": {
+      "input": 5,
+      "output": 25,
+      "cache_write_5m": 6.25,
+      "cache_write_1h": 10,
+      "cache_read": 0.50
+    },
+    "claude-opus-4-6": {
+      "input": 5,
+      "output": 25,
+      "cache_write_5m": 6.25,
+      "cache_write_1h": 10,
+      "cache_read": 0.50
+    },
+    "claude-sonnet-4-6": {
+      "input": 3,
+      "output": 15,
+      "cache_write_5m": 3.75,
+      "cache_write_1h": 6,
+      "cache_read": 0.30
+    }
+  }
+}
