@@ -365,57 +365,63 @@ def detect_cache_rewrites(turns, label, prices):
     system-prompt/tool-definitions prefix, and its write balloons to
     re-cache the whole conversation seen so far.
 
+    Only the part of a call's write whose cache lifetime the gap since the
+    previous call outlasted can be an idle re-write: the 5-minute portion
+    (plus any pre-split remainder, priced as 5-minute elsewhere too) once
+    the gap reaches 5 minutes, the 1-hour portion once it reaches an hour.
+    A call can write to both. A collapse inside that window is a re-write
+    for some other reason (compaction, a changed prefix), not an idle one;
+    across 48 real sessions, over half the collapses came less than an hour
+    after the previous call.
+
     A turn (other than a transcript's first priced call) is flagged when
     all of:
-      - cache_creation_input_tokens >= IDLE_CACHE_REWRITE_MIN_TOKENS;
-      - the write exceeds this turn's own cache_read (most of the context
-        was freshly written, not served from cache); and
-      - this turn's cache_read is *less* than the previous turn's --
-        i.e. an actual collapse, not just growth. Without this check, an
-        early call in a still-short conversation can already out-write a
-        still-small cumulative read with no idle gap involved (seen on a
-        real subagent transcript: a 40k-token write at turn 3 exceeded a
-        37k cumulative read purely because the conversation was young --
-        its read had *grown* from the turn before, not collapsed); the
-        collapse test is what tells the two apart; and
-      - the gap since the previous call is at least the cache's lifetime:
-        1 hour when this call writes to the 1h cache, else 5 minutes. A
-        collapse inside that window is a re-write for some other reason
-        (compaction, a changed prefix), not an idle one; checked across 48
-        real sessions, over half the collapses without this test came
-        less than an hour after the previous call.
+      - that expired portion is >= IDLE_CACHE_REWRITE_MIN_TOKENS;
+      - it exceeds this turn's own cache_read (most of the context was
+        freshly written, not served from cache); and
+      - this turn's cache_read is less than what the previous turn left
+        cached (its read plus its write) -- an actual collapse, not just
+        growth. Without this check, an early call in a still-short
+        conversation can already out-write a still-small cumulative read
+        (seen on a real subagent transcript: a 40k-token write at turn 3
+        exceeded a 37k read purely because the conversation was young).
+        Comparing against read plus write, not read alone, also catches a
+        re-write whose previous turn read nothing from cache.
 
     Returns a list of dicts (agent, timestamp, idle_gap_seconds, model,
-    cache_write, cache_read, cost -- cost is None if the model can't be
-    priced), one per flagged call, in transcript order.
+    cache_write -- the expired portion only --, cache_read, cost -- None
+    if the model can't be priced), one per flagged call, in transcript
+    order.
     """
     rewrites = []
     prev = None
     for t in turns:
-        if prev is not None and (
-            t["cache_write"] >= IDLE_CACHE_REWRITE_MIN_TOKENS
-            and t["cache_write"] > t["cache_read"]
-            and t["cache_read"] < prev["cache_read"]
-        ):
+        if prev is not None:
             gap = None
             if t.get("ts") and prev.get("ts"):
                 try:
                     gap = (parse_timestamp(t["ts"]) - parse_timestamp(prev["ts"])).total_seconds()
                 except ValueError:
                     gap = None
-            lifetime = 3600 if t.get("cc_1h") else 300
-            if gap is None or gap < lifetime:
-                prev = t
-                continue
-            rewrites.append({
-                "agent": label,
-                "timestamp": t.get("ts"),
-                "idle_gap_seconds": gap,
-                "model": t["model"],
-                "cache_write": t["cache_write"],
-                "cache_read": t["cache_read"],
-                "cost": price_cache_write_tokens(t, prices),
-            })
+            remainder = max(t["cache_write"] - t["cc_5m"] - t["cc_1h"], 0)
+            cc_5m = t["cc_5m"] if gap is not None and gap >= 300 else 0
+            cc_1h = t["cc_1h"] if gap is not None and gap >= 3600 else 0
+            expired = cc_5m + cc_1h + (remainder if gap is not None and gap >= 300 else 0)
+            if (
+                expired >= IDLE_CACHE_REWRITE_MIN_TOKENS
+                and expired > t["cache_read"]
+                and t["cache_read"] < prev["cache_read"] + prev["cache_write"]
+            ):
+                expired_turn = dict(t, cache_write=expired, cc_5m=cc_5m, cc_1h=cc_1h)
+                rewrites.append({
+                    "agent": label,
+                    "timestamp": t.get("ts"),
+                    "idle_gap_seconds": gap,
+                    "model": t["model"],
+                    "cache_write": expired,
+                    "cache_read": t["cache_read"],
+                    "cost": price_cache_write_tokens(expired_turn, prices),
+                })
         prev = t
     return rewrites
 
@@ -581,7 +587,9 @@ def build_report(session_path, prices):
         rows.append((label, price_agent(agg, prices), unsplit))
         cache_rewrites.extend(detect_cache_rewrites(turns, label, prices))
 
-    cache_rewrite_cost = sum(r["cost"] for r in cache_rewrites if r["cost"] is not None)
+    priced_rewrites = [r["cost"] for r in cache_rewrites if r["cost"] is not None]
+    # None when every re-write is on an unpriced model, so it never reads as $0.
+    cache_rewrite_cost = sum(priced_rewrites) if priced_rewrites or not cache_rewrites else None
 
     transcript_total_cost = sum(r[1]["cost"] for r in rows if r[1]["cost"] is not None)
     excludes_unpriced = any(r[1]["cost"] is None for r in rows)
@@ -702,16 +710,26 @@ def build_report(session_path, prices):
         n = len(cache_rewrites)
         call_word = "call" if n == 1 else "calls"
         gaps_fmt = ", ".join(format_idle_gap(r["idle_gap_seconds"]) for r in cache_rewrites)
-        pct_str = ""
-        if transcript_total_cost:
-            pct_str = (
-                f" ({format_pct(cache_rewrite_cost / transcript_total_cost * 100)} "
-                "of the transcript total)"
+        unpriced = sum(1 for r in cache_rewrites if r["cost"] is None)
+        if cache_rewrite_cost is None:
+            cost_str = "not priced (unknown model)"
+        elif unpriced:
+            # A partial sum must not read as the whole cost, so no percentage.
+            cost_str = (
+                f"{format_cost(cache_rewrite_cost)} for the priced calls only, "
+                f"{unpriced} more on unpriced models"
             )
+        else:
+            cost_str = format_cost(cache_rewrite_cost)
+            if transcript_total_cost:
+                cost_str += (
+                    f" ({format_pct(cache_rewrite_cost / transcript_total_cost * 100)} "
+                    "of the transcript total)"
+                )
         footnotes.append(
             f"Idle cache re-writes: {n} {call_word} re-wrote the full context after an "
             f"idle gap past the cache lifetime (gaps: {gaps_fmt}), "
-            f"{format_cost(cache_rewrite_cost)}{pct_str}. A chat left idle past its cache "
+            f"{cost_str}. A chat left idle past its cache "
             "lifetime (1 hour, or 5 minutes for a 5-minute cache) pays this again on "
             "its next turn."
         )
@@ -796,6 +814,7 @@ def render_json(session_path, rows, total, footnotes, prices, cache_rewrites, ca
         "total_source": total["total_source"],
         "cache_rewrites": cache_rewrites,
         "cache_rewrite_cost": cache_rewrite_cost,
+        "cache_rewrite_unpriced": sum(1 for r in cache_rewrites if r["cost"] is None),
         "footnotes": footnotes,
     }, indent=2)
 
