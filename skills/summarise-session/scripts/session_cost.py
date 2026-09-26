@@ -398,10 +398,10 @@ def detect_cache_rewrites(turns, label, prices):
     for t in turns:
         if prev is not None:
             gap = None
-            if t.get("ts") and prev.get("ts"):
+            if isinstance(t.get("ts"), str) and isinstance(prev.get("ts"), str):
                 try:
                     gap = (parse_timestamp(t["ts"]) - parse_timestamp(prev["ts"])).total_seconds()
-                except ValueError:
+                except (ValueError, TypeError):
                     gap = None
             remainder = max(t["cache_write"] - t["cc_5m"] - t["cc_1h"], 0)
             cc_5m = t["cc_5m"] if gap is not None and gap >= 300 else 0
