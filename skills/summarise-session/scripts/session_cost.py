@@ -44,10 +44,15 @@ import os
 import re
 import sys
 from collections import defaultdict
+from datetime import datetime
 from math import floor, log10
 from pathlib import Path
 
 DATE_SUFFIX_RE = re.compile(r"^(?P<base>.+)-\d{8}$")
+
+# A call this size or larger writing more than it reads back from cache is
+# the signature of a full context re-write (see detect_cache_rewrites).
+IDLE_CACHE_REWRITE_MIN_TOKENS = 40_000
 
 
 # --------------------------------------------------------------------------
@@ -119,6 +124,7 @@ def load_turns(path):
             "cc_5m": cc.get("ephemeral_5m_input_tokens", 0) or 0,
             "cc_1h": cc.get("ephemeral_1h_input_tokens", 0) or 0,
             "cache_read": usage.get("cache_read_input_tokens", 0) or 0,
+            "ts": rec.get("timestamp"),
         }
         prev = best_by_id.get(mid)
         if prev is None:
@@ -247,6 +253,20 @@ def resolve_price_entry(model_id, prices):
     return None, None
 
 
+def price_cache_write_tokens(turn, prices):
+    """Price one turn's cache-write tokens alone, at that turn's own 5m/1h
+    split -- the same per-token rates price_agent uses, folding any
+    pre-split remainder into the 5m rate like aggregate_turns does. Returns
+    None if the model can't be resolved."""
+    entry, _matched_key = resolve_price_entry(turn["model"], prices)
+    if entry is None:
+        return None
+    remainder = turn["cache_write"] - turn["cc_5m"] - turn["cc_1h"]
+    cc_5m = turn["cc_5m"] + remainder if remainder > 0 else turn["cc_5m"]
+    cc_1h = turn["cc_1h"]
+    return (cc_5m * entry["cache_write_5m"] + cc_1h * entry["cache_write_1h"]) / 1_000_000
+
+
 FIELD_TO_TOKEN_KEY = {
     "input": "input",
     "output": "output",
@@ -326,6 +346,86 @@ def price_agent(agg, prices):
     }
 
 
+def parse_timestamp(ts):
+    """Parse a transcript line's ISO-8601, Z-suffixed UTC timestamp."""
+    return datetime.fromisoformat(ts.replace("Z", "+00:00"))
+
+
+def detect_cache_rewrites(turns, label, prices):
+    """Flag calls in one transcript's turn sequence (main chat, or one
+    subagent) that re-wrote the *whole* context to cache after an idle gap
+    past the cache's TTL, instead of extending the existing cache by one
+    increment as usual.
+
+    In normal back-to-back turns, a call's cache_read is the running total
+    of everything cached so far -- the previous turn's cache_read plus its
+    cache_write -- because each call reads back what's already cached and
+    tops it up. When a gap outlives the TTL, that whole context falls out
+    of cache: the next call's read collapses back down to just the shared
+    system-prompt/tool-definitions prefix, and its write balloons to
+    re-cache the whole conversation seen so far.
+
+    Only the part of a call's write whose cache lifetime the gap since the
+    previous call outlasted can be an idle re-write: the 5-minute portion
+    (plus any pre-split remainder, priced as 5-minute elsewhere too) once
+    the gap reaches 5 minutes, the 1-hour portion once it reaches an hour.
+    A call can write to both. A collapse inside that window is a re-write
+    for some other reason (compaction, a changed prefix), not an idle one;
+    across 48 real sessions, over half the collapses came less than an hour
+    after the previous call.
+
+    A turn (other than a transcript's first priced call) is flagged when
+    all of:
+      - that expired portion is >= IDLE_CACHE_REWRITE_MIN_TOKENS;
+      - it exceeds this turn's own cache_read (most of the context was
+        freshly written, not served from cache); and
+      - this turn's cache_read is less than what the previous turn left
+        cached (its read plus its write) -- an actual collapse, not just
+        growth. Without this check, an early call in a still-short
+        conversation can already out-write a still-small cumulative read
+        (seen on a real subagent transcript: a 40k-token write at turn 3
+        exceeded a 37k read purely because the conversation was young).
+        Comparing against read plus write, not read alone, also catches a
+        re-write whose previous turn read nothing from cache.
+
+    Returns a list of dicts (agent, timestamp, idle_gap_seconds, model,
+    cache_write -- the expired portion only --, cache_read, cost -- None
+    if the model can't be priced), one per flagged call, in transcript
+    order.
+    """
+    rewrites = []
+    prev = None
+    for t in turns:
+        if prev is not None:
+            gap = None
+            if isinstance(t.get("ts"), str) and isinstance(prev.get("ts"), str):
+                try:
+                    gap = (parse_timestamp(t["ts"]) - parse_timestamp(prev["ts"])).total_seconds()
+                except (ValueError, TypeError):
+                    gap = None
+            remainder = max(t["cache_write"] - t["cc_5m"] - t["cc_1h"], 0)
+            cc_5m = t["cc_5m"] if gap is not None and gap >= 300 else 0
+            cc_1h = t["cc_1h"] if gap is not None and gap >= 3600 else 0
+            expired = cc_5m + cc_1h + (remainder if gap is not None and gap >= 300 else 0)
+            if (
+                expired >= IDLE_CACHE_REWRITE_MIN_TOKENS
+                and expired > t["cache_read"]
+                and t["cache_read"] < prev["cache_read"] + prev["cache_write"]
+            ):
+                expired_turn = dict(t, cache_write=expired, cc_5m=cc_5m, cc_1h=cc_1h)
+                rewrites.append({
+                    "agent": label,
+                    "timestamp": t.get("ts"),
+                    "idle_gap_seconds": gap,
+                    "model": t["model"],
+                    "cache_write": expired,
+                    "cache_read": t["cache_read"],
+                    "cost": price_cache_write_tokens(expired_turn, prices),
+                })
+        prev = t
+    return rewrites
+
+
 # --------------------------------------------------------------------------
 # Formatting
 # --------------------------------------------------------------------------
@@ -356,6 +456,34 @@ def format_cost(x):
     exp = floor(log10(abs(r)))
     decimals = max(2 - exp - 1, 0)
     return f"~${r:.{decimals}f}"
+
+
+def format_idle_gap(seconds):
+    """Format a gap in seconds as e.g. '2h 59m', '8h 21m', '45m'. Truncates
+    (floors) to whole minutes rather than rounding, so this reads as time
+    genuinely elapsed rather than a slightly-inflated round figure."""
+    if seconds is None:
+        return "unknown"
+    total_minutes = int(seconds // 60)
+    hours, minutes = divmod(total_minutes, 60)
+    if hours and minutes:
+        return f"{hours}h {minutes}m"
+    if hours:
+        return f"{hours}h"
+    return f"{minutes}m"
+
+
+def format_pct(x):
+    """Round to 2 significant figures and format as e.g. ~37%, ~5.7%,
+    ~0.43% -- same rounding style as format_cost."""
+    r = round_sig(x, 2)
+    if r == 0:
+        return "~0%"
+    exp = floor(log10(abs(r)))
+    if exp >= 1:
+        return f"~{r:.0f}%"
+    decimals = max(2 - exp - 1, 0)
+    return f"~{r:.{decimals}f}%"
 
 
 # --------------------------------------------------------------------------
@@ -390,10 +518,13 @@ def find_newest_session(project_dir):
 
 
 def find_subagents(session_path):
-    """Return a list of (label, agg, unsplit_total) for each subagent
-    transcript sitting next to this session, ordered by the .meta.json's
-    mtime (an approximation of invocation order) when available, else by
-    filename."""
+    """Return a list of (label, agg, unsplit_total, turns) for each
+    subagent transcript sitting next to this session, ordered by the
+    .meta.json's mtime (an approximation of invocation order) when
+    available, else by filename. `turns` is the deduped, ordered per-turn
+    list (as load_turns returns it), kept alongside the aggregate so
+    callers can also run per-turn detection (e.g. detect_cache_rewrites)
+    without re-reading the transcript."""
     session_dir = session_path.parent / session_path.name[: -len(".jsonl")]
     subagents_dir = session_dir / "subagents"
     if not subagents_dir.is_dir():
@@ -435,7 +566,7 @@ def find_subagents(session_path):
             label = f"subagent {agent_id}"
         turns = load_turns(jsonl_path)
         agg, unsplit = aggregate_turns(turns)
-        out.append((label, agg, unsplit))
+        out.append((label, agg, unsplit, turns))
     return out
 
 
@@ -450,8 +581,15 @@ def build_report(session_path, prices):
     main_agg, main_unsplit = aggregate_turns(main_turns)
     rows.append(("main chat", price_agent(main_agg, prices), main_unsplit))
 
-    for label, agg, unsplit in find_subagents(session_path):
+    cache_rewrites = detect_cache_rewrites(main_turns, "main chat", prices)
+
+    for label, agg, unsplit, turns in find_subagents(session_path):
         rows.append((label, price_agent(agg, prices), unsplit))
+        cache_rewrites.extend(detect_cache_rewrites(turns, label, prices))
+
+    priced_rewrites = [r["cost"] for r in cache_rewrites if r["cost"] is not None]
+    # None when every re-write is on an unpriced model, so it never reads as $0.
+    cache_rewrite_cost = sum(priced_rewrites) if priced_rewrites or not cache_rewrites else None
 
     transcript_total_cost = sum(r[1]["cost"] for r in rows if r[1]["cost"] is not None)
     excludes_unpriced = any(r[1]["cost"] is None for r in rows)
@@ -568,8 +706,35 @@ def build_report(session_path, prices):
             "cache write/read tokens on those turns are priced at the model's "
             "standard cache rates (no fast-mode cache pricing is documented)."
         )
+    if cache_rewrites:
+        n = len(cache_rewrites)
+        call_word = "call" if n == 1 else "calls"
+        gaps_fmt = ", ".join(format_idle_gap(r["idle_gap_seconds"]) for r in cache_rewrites)
+        unpriced = sum(1 for r in cache_rewrites if r["cost"] is None)
+        if cache_rewrite_cost is None:
+            cost_str = "not priced (unknown model)"
+        elif unpriced:
+            # A partial sum must not read as the whole cost, so no percentage.
+            cost_str = (
+                f"{format_cost(cache_rewrite_cost)} for the priced calls only, "
+                f"{unpriced} more on unpriced models"
+            )
+        else:
+            cost_str = format_cost(cache_rewrite_cost)
+            if transcript_total_cost:
+                cost_str += (
+                    f" ({format_pct(cache_rewrite_cost / transcript_total_cost * 100)} "
+                    "of the transcript total)"
+                )
+        footnotes.append(
+            f"Idle cache re-writes: {n} {call_word} re-wrote the full context after an "
+            f"idle gap past the cache lifetime (gaps: {gaps_fmt}), "
+            f"{cost_str}. A chat left idle past its cache "
+            "lifetime (1 hour, or 5 minutes for a 5-minute cache) pays this again on "
+            "its next turn."
+        )
 
-    return rows, total, footnotes
+    return rows, total, footnotes, cache_rewrites, cache_rewrite_cost
 
 
 # --------------------------------------------------------------------------
@@ -623,7 +788,7 @@ def render_markdown(rows, total, footnotes):
     return out
 
 
-def render_json(session_path, rows, total, footnotes, prices):
+def render_json(session_path, rows, total, footnotes, prices, cache_rewrites, cache_rewrite_cost):
     return json.dumps({
         "session": str(session_path),
         "as_of": prices.get("as_of"),
@@ -647,6 +812,9 @@ def render_json(session_path, rows, total, footnotes, prices):
         "transcript_total": total["transcript_total"],
         "unattributed": total["unattributed"],
         "total_source": total["total_source"],
+        "cache_rewrites": cache_rewrites,
+        "cache_rewrite_cost": cache_rewrite_cost,
+        "cache_rewrite_unpriced": sum(1 for r in cache_rewrites if r["cost"] is None),
         "footnotes": footnotes,
     }, indent=2)
 
@@ -704,10 +872,10 @@ def main(argv=None):
         print(f"error: could not load prices from {prices_path}: {e}", file=sys.stderr)
         return 1
 
-    rows, total, footnotes = build_report(session_path, prices)
+    rows, total, footnotes, cache_rewrites, cache_rewrite_cost = build_report(session_path, prices)
 
     if args.json:
-        print(render_json(session_path, rows, total, footnotes, prices))
+        print(render_json(session_path, rows, total, footnotes, prices, cache_rewrites, cache_rewrite_cost))
     else:
         print(render_markdown(rows, total, footnotes))
     return 0
