@@ -30,8 +30,9 @@ Usage:
       - a full/relative path to a transcript .jsonl file, or
       - a bare session id, in which case the project directory is
         inferred from the current working directory (the project slug
-        is cwd with "/" replaced by "-"), matching how Claude Code lays
-        out ~/.claude/projects/<slug>/<session-id>.jsonl.
+        is cwd with every non-alphanumeric character replaced by "-"),
+        matching how Claude Code lays out
+        ~/.claude/projects/<slug>/<session-id>.jsonl.
 
     Omit it to default to the current session: the newest *.jsonl by
     mtime directly under that same inferred project directory (this is
@@ -492,14 +493,17 @@ def format_pct(x):
 
 def project_dir_for_cwd():
     """The ~/.claude/projects/<slug> directory Claude Code uses for the
-    current working directory (slug = cwd with '/' replaced by '-')."""
-    slug = str(Path.cwd()).replace(os.sep, "-")
+    current working directory. Claude Code replaces every character that is
+    not an ASCII letter or digit with '-', not just the path separator, so
+    '/repo/snapshot=2026-09-25' and '/my_repo' map to '-repo-snapshot-2026-09-25'
+    and '-my-repo'."""
+    slug = re.sub(r"[^A-Za-z0-9]", "-", str(Path.cwd()))
     return Path.home() / ".claude" / "projects" / slug
 
 
 def resolve_session_path(arg):
     """Accept either a transcript path or a bare session id (project dir
-    inferred from cwd, slug = cwd with '/' replaced by '-')."""
+    inferred from cwd; see project_dir_for_cwd for the slug rule)."""
     if arg.endswith(".jsonl") or os.sep in arg or arg.startswith("~"):
         return Path(arg).expanduser()
     return project_dir_for_cwd() / f"{arg}.jsonl"
