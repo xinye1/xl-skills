@@ -16,8 +16,11 @@
 #     completed. The last run's full output is in OUT_FILE either way.
 #
 # Exit codes: 0 review completed (read OUT_FILE for the findings),
-#             1 the CLI or the base fetch failed for another reason, 2 usage,
-#             3 gave up after CR_MAX_WAIT_SEC (default 3 hours).
+#             1 the CLI or the base fetch failed for another reason, or a
+#               single review run hung past CR_REVIEW_TIMEOUT_SEC (30 min),
+#             2 usage,
+#             3 gave up after CR_MAX_WAIT_SEC (default 3 hours), counting the
+#               time spent queued for the lock.
 set -u
 
 if [ $# -lt 1 ]; then
@@ -27,6 +30,7 @@ fi
 out=$1
 shift
 max_wait=${CR_MAX_WAIT_SEC:-10800}
+review_timeout=${CR_REVIEW_TIMEOUT_SEC:-1800}
 margin=${CR_WAIT_MARGIN_SEC:-30}
 lock=${CR_LOCK_FILE:-${XDG_RUNTIME_DIR:-/tmp}/coderabbit-review.lock}
 
@@ -43,22 +47,31 @@ done
 nap=
 trap '[ -n "$nap" ] && kill "$nap" 2>/dev/null; exit 143' TERM INT HUP
 
+start=$SECONDS
 exec 9>"$lock"
 if ! flock -n 9; then
 	echo "cr_review: queued behind another session's review"
-	flock 9
+	if ! flock -w "$max_wait" 9; then
+		echo "cr_review: still queued after $((SECONDS - start)) s; giving up" >&2
+		exit 3
+	fi
 fi
 
-start=$SECONDS
 attempt=0
 while :; do
 	attempt=$((attempt + 1))
-	if [ -n "$base" ] && ! git fetch -q origin "$base"; then
+	# an explicit refspec: a clone that maps only its own branch would
+	# otherwise fetch the base without updating origin/<base>
+	if [ -n "$base" ] && ! timeout 300 git fetch -q origin "+refs/heads/$base:refs/remotes/origin/$base"; then
 		echo "cr_review: git fetch origin $base failed; not reviewing a stale base" >&2
 		exit 1
 	fi
-	coderabbit review "$@" >"$out" 2>&1
+	timeout "$review_timeout" coderabbit review "$@" >"$out" 2>&1
 	rc=$?
+	if [ "$rc" -eq 124 ]; then
+		echo "cr_review: the review run hung past $review_timeout s; see $out" >&2
+		exit 1
+	fi
 	if [ "$rc" -eq 0 ] && grep -qE 'Review complete' "$out"; then
 		echo "cr_review: attempt $attempt completed"
 		grep -E 'Compare|Review complete|findings' "$out" | sed 's/\x1b\[[0-9;]*m//g'

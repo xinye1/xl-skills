@@ -19,7 +19,10 @@ cat >"$tmp/bin/coderabbit" <<'FAKE'
 n=$(( $(cat "$STATE" 2>/dev/null || echo 0) + 1 ))
 echo $n >"$STATE"
 echo "start $$ $(date +%s.%N)" >>"$LOG"
-sleep "${HOLD:-0}"
+trap 'kill "$nap" 2>/dev/null; exit 143' TERM # a timed-out run leaves no sleep behind
+sleep "${HOLD:-0}" &
+nap=$!
+wait "$nap"
 echo "end $$ $(date +%s.%N)" >>"$LOG"
 if [ "${FAIL:-0}" = 1 ]; then echo "Error: something else"; exit 7; fi
 if [ "${CRASH:-0}" = 1 ]; then printf 'Review complete\nSegmentation fault\n'; exit 139; fi
@@ -66,13 +69,44 @@ check "exit 3 when giving up" [ $rc = 3 ]
 # two sessions at once queue on the lock instead of overlapping
 : >"$LOG"
 STATE="$tmp/s4" HOLD=1 "$here/cr_review.sh" "$tmp/out4a" >"$tmp/o4a" &
-sleep 0.2
+until grep -q '^start' "$LOG"; do sleep 0.05; done # the first holds the lock now
 STATE="$tmp/s4" HOLD=1 "$here/cr_review.sh" "$tmp/out4b" >"$tmp/o4b" &
 wait
 check "the second session says it is queued" grep -q queued "$tmp/o4b"
 overlap=$(awk '/^start/ { if (open) bad = 1; open = 1 } /^end/ { open = 0 } END { print bad + 0 }' \
 	<(sort -k3 -n "$LOG"))
 check "reviews never overlap" [ "$overlap" = 0 ]
+
+# time queued for the lock counts against the wait budget
+flock "$CR_LOCK_FILE" sleep 5.17 &
+holder=$!
+sleep 0.3
+t0=$SECONDS
+STATE="$tmp/s8" CR_MAX_WAIT_SEC=1 "$here/cr_review.sh" "$tmp/out8" >/dev/null 2>&1
+rc=$?
+check "exit 3 when queued past the budget" [ $rc = 3 ]
+check "and gives up within the budget" [ $((SECONDS - t0)) -le 3 ]
+check "without running a review" [ ! -e "$tmp/s8" ]
+pkill -P "$holder" 2>/dev/null
+kill "$holder" 2>/dev/null
+wait "$holder" 2>/dev/null
+
+# a hung review run is cut off
+STATE="$tmp/s9" HOLD=5.13 CR_REVIEW_TIMEOUT_SEC=1 "$here/cr_review.sh" "$tmp/out9" >/dev/null 2>&1
+rc=$?
+check "exit 1 when a review run hangs" [ $rc = 1 ]
+
+# the base is refreshed even in a clone that maps only its own branch
+git init -q --bare -b main "$tmp/remote.git"
+git clone -q "$tmp/remote.git" "$tmp/seed" 2>/dev/null
+git -C "$tmp/seed" -c user.name=t -c user.email=t@t commit -q --allow-empty -m one
+git -C "$tmp/seed" push -q origin HEAD:main HEAD:feature
+git clone -q --single-branch --branch feature "$tmp/remote.git" "$tmp/narrow"
+git -C "$tmp/seed" -c user.name=t -c user.email=t@t commit -q --allow-empty -m two
+git -C "$tmp/seed" push -q origin HEAD:main
+(cd "$tmp/narrow" && STATE="$tmp/s10" "$here/cr_review.sh" "$tmp/out10" --base origin/main) >/dev/null 2>&1
+check "origin/main is updated before the review" \
+	[ "$(git -C "$tmp/narrow" rev-parse -q --verify origin/main)" = "$(git -C "$tmp/remote.git" rev-parse main)" ]
 
 # killing a wrapper that is waiting out a rate limit frees the lock at once
 STATE="$tmp/s7" LIMITED=99 CR_WAIT_MARGIN_SEC=60 "$here/cr_review.sh" "$tmp/out7" >/dev/null 2>&1 &
