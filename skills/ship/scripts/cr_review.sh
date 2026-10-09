@@ -16,7 +16,7 @@
 #     completed. The last run's full output is in OUT_FILE either way.
 #
 # Exit codes: 0 review completed (read OUT_FILE for the findings),
-#             1 the CLI failed for another reason, 2 usage,
+#             1 the CLI or the base fetch failed for another reason, 2 usage,
 #             3 gave up after CR_MAX_WAIT_SEC (default 3 hours).
 set -u
 
@@ -49,10 +49,13 @@ start=$SECONDS
 attempt=0
 while :; do
 	attempt=$((attempt + 1))
-	[ -n "$base" ] && git fetch -q origin "$base"
+	if [ -n "$base" ] && ! git fetch -q origin "$base"; then
+		echo "cr_review: git fetch origin $base failed; not reviewing a stale base" >&2
+		exit 1
+	fi
 	coderabbit review "$@" >"$out" 2>&1
 	rc=$?
-	if grep -qE 'Review complete' "$out"; then
+	if [ "$rc" -eq 0 ] && grep -qE 'Review complete' "$out"; then
 		echo "cr_review: attempt $attempt completed"
 		grep -E 'Compare|Review complete|findings' "$out" | sed 's/\x1b\[[0-9;]*m//g'
 		exit 0

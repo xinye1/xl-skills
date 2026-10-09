@@ -22,6 +22,7 @@ echo "start $$ $(date +%s.%N)" >>"$LOG"
 sleep "${HOLD:-0}"
 echo "end $$ $(date +%s.%N)" >>"$LOG"
 if [ "${FAIL:-0}" = 1 ]; then echo "Error: something else"; exit 7; fi
+if [ "${CRASH:-0}" = 1 ]; then printf 'Review complete\nSegmentation fault\n'; exit 139; fi
 if [ "$n" -le "${LIMITED:-0}" ]; then
 	printf '  \033[31m✗ Review limit reached\033[0m\n  You can wait 0 minutes and 1 seconds for the limit to reset.\nError: Rate limit exceeded\n'
 	exit 1
@@ -44,6 +45,18 @@ STATE="$tmp/s2" FAIL=1 "$here/cr_review.sh" "$tmp/out2" >/dev/null 2>"$tmp/e2"
 rc=$?
 check "exit 1 on another CLI failure" [ $rc = 1 ]
 check "no retry on another failure" [ "$(cat "$tmp/s2")" = 1 ]
+
+# a trailer from a run that then failed is not success
+STATE="$tmp/s5" CRASH=1 "$here/cr_review.sh" "$tmp/out5" >/dev/null 2>&1
+rc=$?
+check "exit 1 when the CLI fails after printing a trailer" [ $rc = 1 ]
+
+# a failed fetch of the base stops before reviewing
+git init -q "$tmp/repo" && git -C "$tmp/repo" remote add origin "$tmp/no-such-remote"
+(cd "$tmp/repo" && STATE="$tmp/s6" "$here/cr_review.sh" "$tmp/out6" --base origin/main) >/dev/null 2>&1
+rc=$?
+check "exit 1 when the base can't be fetched" [ $rc = 1 ]
+check "no review of a stale base" [ ! -e "$tmp/s6" ]
 
 # gives up when the wait would pass the cap
 STATE="$tmp/s3" LIMITED=99 CR_MAX_WAIT_SEC=2 CR_WAIT_MARGIN_SEC=5 "$here/cr_review.sh" "$tmp/out3" >/dev/null 2>&1
