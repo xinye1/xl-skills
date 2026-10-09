@@ -39,6 +39,10 @@ for a in "$@"; do
 	prev=$a
 done
 
+# A killed wrapper must not leave its sleep holding the lock.
+nap=
+trap '[ -n "$nap" ] && kill "$nap" 2>/dev/null; exit 143' TERM INT HUP
+
 exec 9>"$lock"
 if ! flock -n 9; then
 	echo "cr_review: queued behind another session's review"
@@ -73,5 +77,8 @@ while :; do
 		exit 3
 	fi
 	echo "cr_review: attempt $attempt rate-limited; retrying in $wait s"
-	sleep "$wait"
+	sleep "$wait" 9>&- & # the lock stays with this shell, not the sleep
+	nap=$!
+	wait "$nap"
+	nap=
 done

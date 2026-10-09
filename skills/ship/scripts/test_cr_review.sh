@@ -74,6 +74,16 @@ overlap=$(awk '/^start/ { if (open) bad = 1; open = 1 } /^end/ { open = 0 } END 
 	<(sort -k3 -n "$LOG"))
 check "reviews never overlap" [ "$overlap" = 0 ]
 
+# killing a wrapper that is waiting out a rate limit frees the lock at once
+STATE="$tmp/s7" LIMITED=99 CR_WAIT_MARGIN_SEC=60 "$here/cr_review.sh" "$tmp/out7" >/dev/null 2>&1 &
+victim=$!
+sleep 0.5
+kill "$victim"
+wait "$victim" 2>/dev/null
+sleep 0.2
+check "a killed wrapper releases the lock" flock -n "$CR_LOCK_FILE" true
+check "and leaves no sleep behind" bash -c '! pgrep -f "^sleep 61$" >/dev/null'
+
 # usage
 "$here/cr_review.sh" >/dev/null 2>&1
 check "exit 2 without an output file" [ $? = 2 ]
