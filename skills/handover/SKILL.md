@@ -178,6 +178,7 @@ Phase-specific plan (if one exists): `<path>`
 
 - Branch off `<base>`: `git checkout <base> && git pull && git checkout -b <type>/<short-name>` (or continue on `<existing-branch>` for mid-phase).
 - Conventional commits only (`feat(<scope>): ...`, `fix(<scope>): ...`).
+- <Only if other sessions may share this checkout — a live, deployed checkout such as stowed dotfiles, or parallel phases in one repo:> Work in a worktree (`git worktree add`), and switch the shared checkout only for a live smoke test, rebasing first. Other sessions run `git checkout main && git pull` in it without warning, so a "keep `<branch>` checked out" instruction won't hold.
 - After the last subagent has reported back **AND** you (the orchestrator) have run the overall validation suite green (step 4 of the execution model): use the `ship` skill to push, review, merge, clean up. Do not ship on the strength of task-level test reports alone — the overall validation gate must pass first, otherwise integration bugs ship with the PR.
 
 ## Key guardrails (from `CLAUDE.md` — enforce in reviews)
@@ -239,6 +240,7 @@ Goals, reasoning, and constraints — no numbered procedure. The "why" in the Go
 ## Constraints
 
 - Branch: off `<base>` as `<type>/<short-name>` (or continue `<existing-branch>` mid-phase). Conventional commits only.
+- <Only if other sessions may share this checkout:> Work in a worktree, and switch the shared checkout only for a live smoke test, rebasing first. Other sessions move a shared checkout without warning.
 - Guardrails (from `CLAUDE.md` — enforce in reviews):
   - <guardrail 1, verbatim>
   - <guardrail 2>
