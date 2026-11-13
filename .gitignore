@@ -7,3 +7,5 @@ skills/*-workspace/
 .claude/settings.local.json
 # claude.ai org skills, synced by Claude Code into ~/.claude/skills (symlinked here)
 skills/synced/
+# Claude Code's trash for replaced synced-skill sets
+skills/.trash/
