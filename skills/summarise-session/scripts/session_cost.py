@@ -274,23 +274,41 @@ def resolve_price_entry(model_id, prices):
     return None, None
 
 
+def fast_cache_scale(entry):
+    """Fast mode charges the prompt-caching multipliers on top of its own
+    input rate (pricing page: "prompt caching multipliers apply on top of
+    fast mode pricing"), so a fast turn's cache rates are the model's
+    standard cache rates scaled by fast input / standard input. Keeping the
+    ratio, not re-deriving 1.25x/2x/0.1x, preserves a model's own cache-read
+    multiplier (e.g. 0.025x on Fable 5.2). None if the model has no
+    documented fast-mode price."""
+    fm = entry.get("fast_mode")
+    return fm["input"] / entry["input"] if fm else None
+
+
 def price_cache_write_tokens(turn, prices, rate_turn=None):
     """Price one turn's cache-write tokens alone, at that turn's own 5m/1h
     split -- the same per-token rates price_agent uses, folding any
     pre-split remainder into the 5m rate like aggregate_turns does. The
     long-prompt tier is chosen from `rate_turn` (default: `turn`), so a
     caller pricing only part of a request's write still gets the rate the
-    whole request was billed at. Returns None if the model can't be
-    resolved."""
+    whole request was billed at. A fast-mode turn's rates are scaled as
+    fast_cache_scale describes. Returns None if the model can't be
+    resolved, or the turn is fast mode on a model with no fast-mode price."""
     entry, _matched_key = resolve_price_entry(turn["model"], prices)
     if entry is None:
         return None
+    scale = 1.0
+    if turn.get("speed") == "fast":
+        scale = fast_cache_scale(entry)
+        if scale is None:
+            return None
     if is_long_prompt(rate_turn or turn, entry):
         entry = entry["long_prompt"]
     remainder = turn["cache_write"] - turn["cc_5m"] - turn["cc_1h"]
     cc_5m = turn["cc_5m"] + remainder if remainder > 0 else turn["cc_5m"]
     cc_1h = turn["cc_1h"]
-    return (cc_5m * entry["cache_write_5m"] + cc_1h * entry["cache_write_1h"]) / 1_000_000
+    return scale * (cc_5m * entry["cache_write_5m"] + cc_1h * entry["cache_write_1h"]) / 1_000_000
 
 
 FIELD_TO_TOKEN_KEY = {
@@ -339,21 +357,21 @@ def price_agent(agg, prices):
                     )
                     continue
                 rate_in, rate_out = fm["input"], fm["output"]
+                cache_scale = fast_cache_scale(entry)
                 if fm.get("unconfirmed"):
                     unconfirmed_used.add(f"{model_id} fast_mode")
             else:
                 rate_in, rate_out = rates["input"], rates["output"]
+                cache_scale = 1.0
 
-            # Cache write/read pricing is not fast-mode-specific in the
-            # source (only input/output carry a documented fast premium),
-            # so cache tokens are priced at the model's standard cache
-            # rates regardless of speed.
             slice_cost = (
                 tok["input"] * rate_in
                 + tok["output"] * rate_out
-                + tok["cc_5m"] * rates["cache_write_5m"]
-                + tok["cc_1h"] * rates["cache_write_1h"]
-                + tok["cache_read"] * rates["cache_read"]
+                + cache_scale * (
+                    tok["cc_5m"] * rates["cache_write_5m"]
+                    + tok["cc_1h"] * rates["cache_write_1h"]
+                    + tok["cache_read"] * rates["cache_read"]
+                )
             ) / 1_000_000
             cost += slice_cost
 
@@ -732,8 +750,9 @@ def build_report(session_path, prices):
     if fast_mode_used:
         footnotes.append(
             "Includes turns run in fast mode (usage.speed == \"fast\"); "
-            "cache write/read tokens on those turns are priced at the model's "
-            "standard cache rates (no fast-mode cache pricing is documented)."
+            "their cache write/read tokens are priced at the model's cache "
+            "multipliers applied to the fast-mode input rate, as the pricing "
+            "page states."
         )
     if cache_rewrites:
         n = len(cache_rewrites)
