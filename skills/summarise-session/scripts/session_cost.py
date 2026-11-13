@@ -30,8 +30,9 @@ Usage:
       - a full/relative path to a transcript .jsonl file, or
       - a bare session id, in which case the project directory is
         inferred from the current working directory (the project slug
-        is cwd with "/" replaced by "-"), matching how Claude Code lays
-        out ~/.claude/projects/<slug>/<session-id>.jsonl.
+        is cwd with every non-alphanumeric character replaced by "-"),
+        matching how Claude Code lays out
+        ~/.claude/projects/<slug>/<session-id>.jsonl.
 
     Omit it to default to the current session: the newest *.jsonl by
     mtime directly under that same inferred project directory (this is
@@ -539,30 +540,63 @@ def format_pct(x):
 
 def project_dir_for_cwd():
     """The ~/.claude/projects/<slug> directory Claude Code uses for the
-    current working directory (slug = cwd with '/' replaced by '-')."""
-    slug = str(Path.cwd()).replace(os.sep, "-")
+    current working directory. Claude Code replaces every character that is
+    not an ASCII letter or digit with '-', not just the path separator, so
+    '/repo/snapshot=2026-09-25' and '/my_repo' map to '-repo-snapshot-2026-09-25'
+    and '-my-repo'."""
+    slug = re.sub(r"[^A-Za-z0-9]", "-", str(Path.cwd()))
     return Path.home() / ".claude" / "projects" / slug
 
 
 def resolve_session_path(arg):
     """Accept either a transcript path or a bare session id (project dir
-    inferred from cwd, slug = cwd with '/' replaced by '-')."""
+    inferred from cwd; see project_dir_for_cwd for the slug rule)."""
     if arg.endswith(".jsonl") or os.sep in arg or arg.startswith("~"):
         return Path(arg).expanduser()
     return project_dir_for_cwd() / f"{arg}.jsonl"
 
 
-def find_newest_session(project_dir):
+def transcript_cwd(path, max_lines=200):
+    """The working directory a transcript was recorded in: the first `cwd`
+    field among its first `max_lines` records, or None if none is found.
+    Claude Code writes `cwd` on user/assistant records, near the top."""
+    try:
+        with path.open(encoding="utf-8", errors="replace") as fh:
+            for i, line in enumerate(fh):
+                if i >= max_lines:
+                    break
+                try:
+                    rec = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(rec, dict) and isinstance(rec.get("cwd"), str):
+                    return rec["cwd"]
+    except OSError:
+        pass
+    return None
+
+
+def find_newest_session(project_dir, cwd=None):
     """Return the most-recently-modified top-level *.jsonl transcript in
     project_dir (by mtime), or None if there isn't one. Subagent
     transcripts live one directory deeper (<session-id>/subagents/), so a
     non-recursive glob here only ever sees top-level session transcripts.
-    This is normally the live session invoking this script."""
-    candidates = [p for p in project_dir.glob("*.jsonl") if p.is_file()]
-    if not candidates:
-        return None
-    return max(candidates, key=lambda p: p.stat().st_mtime)
+    This is normally the live session invoking this script.
 
+    Different directories can share one project_dir, because the slug turns
+    every non-alphanumeric character into '-' ('/work/my_project' and
+    '/work/my-project' both become '-work-my-project'). With `cwd`, the
+    newest transcript recorded in exactly that directory wins; transcripts
+    that record no cwd are still eligible, so older formats keep working."""
+    candidates = [p for p in project_dir.glob("*.jsonl") if p.is_file()]
+    candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+    for p in candidates:
+        if cwd is None:
+            return p
+        recorded = transcript_cwd(p)
+        if recorded is None or recorded == cwd:
+            return p
+    return None
 
 def find_subagents(session_path, prices):
     """Return a list of (label, agg, unsplit_total, turns) for each
@@ -899,9 +933,9 @@ def main(argv=None):
         session_path = resolve_session_path(args.session)
     else:
         project_dir = project_dir_for_cwd()
-        session_path = find_newest_session(project_dir)
+        session_path = find_newest_session(project_dir, cwd=str(Path.cwd()))
         if session_path is None:
-            print(f"error: no transcripts found in {project_dir}", file=sys.stderr)
+            print(f"error: no transcripts for {Path.cwd()} found in {project_dir}", file=sys.stderr)
             return 1
         print(f"session: {session_path.name} (newest in {project_dir}, none given)", file=sys.stderr)
 
