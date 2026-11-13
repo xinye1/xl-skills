@@ -150,23 +150,23 @@ def is_long_prompt(turn, entry):
     return bool(lp) and prompt_tokens(turn) > lp["over_tokens"]
 
 
-def aggregate_turns(turns, prices=None):
+def aggregate_turns(turns, prices):
     """Aggregate a list of per-turn usage dicts into agg[model][speed] ->
     token totals. Cache-write tokens with no 5m/1h split (older
     transcripts, where cache_creation_input_tokens > the ephemeral_* sum)
     have their unsplit remainder folded into the 5m bucket for pricing
     (5-minute TTL is the default) and counted in "unsplit_remainder" so
-    callers can footnote it. With `prices`, a request over its model's
-    long-prompt threshold goes in a separate "<speed>:long" bucket so it
-    is priced at the higher rates. Returns (agg, unsplit_remainder_total)."""
+    callers can footnote it. `prices` is required: a request over its
+    model's long-prompt threshold goes in a separate "<speed>:long" bucket
+    so price_agent prices it at the higher rates, and aggregating without
+    it would silently put long requests on the standard rates. Returns (agg, unsplit_remainder_total)."""
     agg = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
     unsplit_total = 0
     for t in turns:
         speed = t["speed"]
-        if prices is not None:
-            entry, _matched_key = resolve_price_entry(t["model"], prices)
-            if is_long_prompt(t, entry):
-                speed = f"{speed}:long"
+        entry, _matched_key = resolve_price_entry(t["model"], prices)
+        if is_long_prompt(t, entry):
+            speed = f"{speed}:long"
         b = agg[t["model"]][speed]
         b["input"] += t["input"]
         b["output"] += t["output"]
@@ -546,7 +546,7 @@ def find_newest_session(project_dir):
     return max(candidates, key=lambda p: p.stat().st_mtime)
 
 
-def find_subagents(session_path, prices=None):
+def find_subagents(session_path, prices):
     """Return a list of (label, agg, unsplit_total, turns) for each
     subagent transcript sitting next to this session, ordered by the
     .meta.json's mtime (an approximation of invocation order) when
