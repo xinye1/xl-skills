@@ -136,17 +136,38 @@ def load_turns(path):
     return turns
 
 
-def aggregate_turns(turns):
+def prompt_tokens(turn):
+    """A request's prompt length as long-prompt pricing counts it: every
+    input token, including cache reads and cache writes."""
+    return turn["input"] + turn["cache_write"] + turn["cache_read"]
+
+
+def is_long_prompt(turn, entry):
+    """True when the model prices prompts by length (a `long_prompt` block
+    in prices.json, e.g. claude-haiku-5-5) and this request's prompt is over
+    its threshold. Each request is priced on its own."""
+    lp = (entry or {}).get("long_prompt")
+    return bool(lp) and prompt_tokens(turn) > lp["over_tokens"]
+
+
+def aggregate_turns(turns, prices):
     """Aggregate a list of per-turn usage dicts into agg[model][speed] ->
     token totals. Cache-write tokens with no 5m/1h split (older
     transcripts, where cache_creation_input_tokens > the ephemeral_* sum)
     have their unsplit remainder folded into the 5m bucket for pricing
     (5-minute TTL is the default) and counted in "unsplit_remainder" so
-    callers can footnote it. Returns (agg, unsplit_remainder_total)."""
+    callers can footnote it. `prices` is required: a request over its
+    model's long-prompt threshold goes in a separate "<speed>:long" bucket
+    so price_agent prices it at the higher rates, and aggregating without
+    it would silently put long requests on the standard rates. Returns (agg, unsplit_remainder_total)."""
     agg = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
     unsplit_total = 0
     for t in turns:
-        b = agg[t["model"]][t["speed"]]
+        speed = t["speed"]
+        entry, _matched_key = resolve_price_entry(t["model"], prices)
+        if is_long_prompt(t, entry):
+            speed = f"{speed}:long"
+        b = agg[t["model"]][speed]
         b["input"] += t["input"]
         b["output"] += t["output"]
         b["cache_write"] += t["cache_write"]
@@ -253,14 +274,19 @@ def resolve_price_entry(model_id, prices):
     return None, None
 
 
-def price_cache_write_tokens(turn, prices):
+def price_cache_write_tokens(turn, prices, rate_turn=None):
     """Price one turn's cache-write tokens alone, at that turn's own 5m/1h
     split -- the same per-token rates price_agent uses, folding any
-    pre-split remainder into the 5m rate like aggregate_turns does. Returns
-    None if the model can't be resolved."""
+    pre-split remainder into the 5m rate like aggregate_turns does. The
+    long-prompt tier is chosen from `rate_turn` (default: `turn`), so a
+    caller pricing only part of a request's write still gets the rate the
+    whole request was billed at. Returns None if the model can't be
+    resolved."""
     entry, _matched_key = resolve_price_entry(turn["model"], prices)
     if entry is None:
         return None
+    if is_long_prompt(rate_turn or turn, entry):
+        entry = entry["long_prompt"]
     remainder = turn["cache_write"] - turn["cc_5m"] - turn["cc_1h"]
     cc_5m = turn["cc_5m"] + remainder if remainder > 0 else turn["cc_5m"]
     cc_1h = turn["cc_1h"]
@@ -301,6 +327,9 @@ def price_agent(agg, prices):
                 unpriced_reasons.append(f"unknown model {model_id}")
                 continue
 
+            speed, _, tier = speed.partition(":")
+            rates = entry["long_prompt"] if tier == "long" else entry
+
             if speed == "fast":
                 fast_mode_seen = True
                 fm = entry.get("fast_mode")
@@ -313,7 +342,7 @@ def price_agent(agg, prices):
                 if fm.get("unconfirmed"):
                     unconfirmed_used.add(f"{model_id} fast_mode")
             else:
-                rate_in, rate_out = entry["input"], entry["output"]
+                rate_in, rate_out = rates["input"], rates["output"]
 
             # Cache write/read pricing is not fast-mode-specific in the
             # source (only input/output carry a documented fast premium),
@@ -322,9 +351,9 @@ def price_agent(agg, prices):
             slice_cost = (
                 tok["input"] * rate_in
                 + tok["output"] * rate_out
-                + tok["cc_5m"] * entry["cache_write_5m"]
-                + tok["cc_1h"] * entry["cache_write_1h"]
-                + tok["cache_read"] * entry["cache_read"]
+                + tok["cc_5m"] * rates["cache_write_5m"]
+                + tok["cc_1h"] * rates["cache_write_1h"]
+                + tok["cache_read"] * rates["cache_read"]
             ) / 1_000_000
             cost += slice_cost
 
@@ -420,7 +449,7 @@ def detect_cache_rewrites(turns, label, prices):
                     "model": t["model"],
                     "cache_write": expired,
                     "cache_read": t["cache_read"],
-                    "cost": price_cache_write_tokens(expired_turn, prices),
+                    "cost": price_cache_write_tokens(expired_turn, prices, rate_turn=t),
                 })
         prev = t
     return rewrites
@@ -517,7 +546,7 @@ def find_newest_session(project_dir):
     return max(candidates, key=lambda p: p.stat().st_mtime)
 
 
-def find_subagents(session_path):
+def find_subagents(session_path, prices):
     """Return a list of (label, agg, unsplit_total, turns) for each
     subagent transcript sitting next to this session, ordered by the
     .meta.json's mtime (an approximation of invocation order) when
@@ -565,7 +594,7 @@ def find_subagents(session_path):
         else:
             label = f"subagent {agent_id}"
         turns = load_turns(jsonl_path)
-        agg, unsplit = aggregate_turns(turns)
+        agg, unsplit = aggregate_turns(turns, prices)
         out.append((label, agg, unsplit, turns))
     return out
 
@@ -578,12 +607,12 @@ def build_report(session_path, prices):
     rows = []
 
     main_turns = load_turns(session_path)
-    main_agg, main_unsplit = aggregate_turns(main_turns)
+    main_agg, main_unsplit = aggregate_turns(main_turns, prices)
     rows.append(("main chat", price_agent(main_agg, prices), main_unsplit))
 
     cache_rewrites = detect_cache_rewrites(main_turns, "main chat", prices)
 
-    for label, agg, unsplit, turns in find_subagents(session_path):
+    for label, agg, unsplit, turns in find_subagents(session_path, prices):
         rows.append((label, price_agent(agg, prices), unsplit))
         cache_rewrites.extend(detect_cache_rewrites(turns, label, prices))
 
