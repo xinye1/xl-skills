@@ -8,6 +8,7 @@ Xinye's personal Claude Code skills.
 xl-skills/
 ├── skills/
 │   └── <name>/SKILL.md
+├── docs/            # INDEX.md + methodology/ — how and why the skills changed
 └── dist/              # packaged .skill artifacts (gitignored)
 ```
 
