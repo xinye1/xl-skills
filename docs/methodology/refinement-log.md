@@ -28,11 +28,13 @@ Newest first. Each entry records what prompted the change, the evidence, what ch
 
 - *Defaulting every orchestrator to `opus`.* The post's "start on Opus" is for unknown work. A phase from a written plan with explicit tasks is the spec-driven case it sends to Sonnet 5.5. So the rule keys on the phase's shape, and `opus` is the default only when that shape is unclear.
 - *Sending Sonnet 5.5 the goal-directed Template B.* Nothing in the post says Sonnet 5.5 plans better without a procedure. Its advice to write "precisely enough for the most literal model" points the other way, so Template A stays.
-- *Gating `/pickup` on effort as it gates on model.* The chat can't read its own effort reliably, so a gate would guess. The receipt shows it instead.
+- *Gating `/pickup` on effort as it gates on model.* The chat can't read its own effort reliably, so a gate would guess. The receipt shows it instead. Review then suggested that `/pickup` end its turn after the reminder until the user confirms effort. Rejected: that adds a turn to every hop, including the normal path where the handover receipt already had the user run `/effort` before `/pickup`, or start with `claude --effort`. The pickup reminder is the third safety net, not the first.
 
 **What review caught (CodeRabbit CLI on PR #47).**
 
 - The first draft printed `/effort` only for non-`medium` handovers, on the theory that `medium` is Claude Code's default. But `/effort` is saved per model (`modelSettings.<model>.effortLevel` in `~/.claude/settings.json`) and carries into later sessions. This machine has Opus 5.5 saved at `high`, so a `medium` handover would have silently run at `high`. The step is now always printed.
+- The same-tier receipt branch still said to print only `/clear` and `/pickup`, contradicting the always-print rule. Eval 0 also expected the receipt to compare against the chat's current effort, which the skill says can't be read. Both fixed.
+- The execution models said to leave subagent effort "at the model's default", but an Agent call without `effort` inherits the session's effort. Subagents now start at an explicit `medium`.
 - Eval 0 still expected Template A's sections even when the new rules pick `opus`, which takes Template B. It now expects the sections of whichever template the recommended model takes.
 
 **What the pass caught along the way.**
