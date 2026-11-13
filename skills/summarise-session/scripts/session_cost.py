@@ -274,15 +274,18 @@ def resolve_price_entry(model_id, prices):
     return None, None
 
 
-def price_cache_write_tokens(turn, prices):
+def price_cache_write_tokens(turn, prices, rate_turn=None):
     """Price one turn's cache-write tokens alone, at that turn's own 5m/1h
     split -- the same per-token rates price_agent uses, folding any
-    pre-split remainder into the 5m rate like aggregate_turns does. Returns
-    None if the model can't be resolved."""
+    pre-split remainder into the 5m rate like aggregate_turns does. The
+    long-prompt tier is chosen from `rate_turn` (default: `turn`), so a
+    caller pricing only part of a request's write still gets the rate the
+    whole request was billed at. Returns None if the model can't be
+    resolved."""
     entry, _matched_key = resolve_price_entry(turn["model"], prices)
     if entry is None:
         return None
-    if is_long_prompt(turn, entry):
+    if is_long_prompt(rate_turn or turn, entry):
         entry = entry["long_prompt"]
     remainder = turn["cache_write"] - turn["cc_5m"] - turn["cc_1h"]
     cc_5m = turn["cc_5m"] + remainder if remainder > 0 else turn["cc_5m"]
@@ -446,7 +449,7 @@ def detect_cache_rewrites(turns, label, prices):
                     "model": t["model"],
                     "cache_write": expired,
                     "cache_read": t["cache_read"],
-                    "cost": price_cache_write_tokens(expired_turn, prices),
+                    "cost": price_cache_write_tokens(expired_turn, prices, rate_turn=t),
                 })
         prev = t
     return rewrites
