@@ -99,7 +99,7 @@ Why memory now, not later: the details fade fast. The next chat inherits the han
 - **`fable`: the hardest phases.** These are major refactors and migrations, architecture planning that shapes the remaining phases, phases leading many parallel or long-running subagents, and long unattended runs. Also choose it when an earlier phase on `opus` at `high` still fell short. Fable 5.2 costs 2× Opus 5.5 per token. Per task the gap is narrower: on a hard coding benchmark, Fable 5.2 at `high` matched Opus 5.5 at `max` for about half the cost. So on a genuine opus/fable boundary it can be the cheaper choice end to end (tokens, redone work and your time). If `opus` would orchestrate the phase equally well, choose `opus`.
 - **Never recommend `haiku`** for the orchestrator.
 
-**Then choose the effort level: `medium` by default.** `medium` is the Claude Code default for all three tiers. Recommend `high` only when this model already fell short at `medium` on comparable work, for example missed integration bugs or redone tasks. Change effort before you change model, because raising effort is the cheaper fix. Past `high` the order flips: one more effort level can cost as much as the next model up, so recommend the next tier at `medium` rather than `xhigh` or `max`. Effort does not add knowledge or skill the model lacks; only a bigger model does that.
+**Then choose the effort level: `medium` by default.** `medium` is Claude Code's built-in default for all three tiers, though a user's saved per-model setting can override it. Recommend `high` only when this model already fell short at `medium` on comparable work, for example missed integration bugs or redone tasks. Change effort before you change model, because raising effort is the cheaper fix. Past `high` the order flips: one more effort level can cost as much as the next model up, so recommend the next tier at `medium` rather than `xhigh` or `max`. Effort does not add knowledge or skill the model lacks; only a bigger model does that.
 
 (This is separate from per-task subagent models and effort, which the execution model sizes per task.)
 
@@ -311,7 +311,7 @@ Any `FAIL`: fix the file and re-run the check. Never show a green receipt over a
 Next, in this terminal (/clear first: until then, any message re-sends this whole chat):
   1. /clear                 ← this chat stays saved on disk
   2. /model <recommended>   ← only when the model line shows ⚠
-  3. /effort <effort>       ← only when the effort is not medium
+  3. /effort <effort>       ← always: a saved effort level outlives the session
   4. /pickup
 
 Closing the terminal instead? Later, in <cwd>:  claude --model <recommended> --effort <effort>, then /pickup
@@ -328,7 +328,7 @@ Number the steps that are printed consecutively; a left-out step leaves no gap.
 
 If you can't tell which model you are running as, end the line `⚠ can't tell` and print the `/model` step.
 
-**The effort step.** `medium` is Claude Code's default effort for `sonnet`, `opus` and `fable`, and you can't reliably read this chat's own effort level. So print the `/effort` step only when the handover recommends something other than `medium`, and always show the effort on the `model` line. Like `/model`, `/effort` sends nothing, so it goes after `/clear` too.
+**The effort step is always printed.** You can't reliably read this chat's own effort level. It also isn't safe to assume Claude Code's built-in `medium`: an effort chosen with `/effort` is saved per model in `~/.claude/settings.json` (`modelSettings.<model>.effortLevel`) and carries into every later session on that model. So a `medium` handover still prints `/effort medium`. Like `/model`, `/effort` sends nothing, so it goes after `/clear` too. Show the effort on the `model` line as well.
 
 **The closing-the-terminal line** covers a reboot, or a hop left for another day. Nothing needs clearing then, because closing the terminal already ends the chat and leaves it on disk. It uses `claude --model` and `--effort`, which set the model and effort for that one session. `/model` also saves the choice as the default for every new session, so one `/model fable` would make each later `claude` start on `fable`. Fill `<cwd>` with the working directory from the frontmatter. Print the line even when the models match, so it always shows which model to start on.
 

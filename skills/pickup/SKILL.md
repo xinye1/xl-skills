@@ -41,12 +41,12 @@ Arguments passed: "$ARGUMENTS" (empty quotes mean none). They decide the path:
 - **This chat is weaker:** stop here. Don't read the rest of the file, and don't archive it. Say:
   > This handover wants `<model>`, but this chat is on `<current>`. Run `/model <model>`, then `/pickup <file name without .md>`. Or reply "continue" to load it on `<current>` anyway.
 
-  When the file's `effort` field is set and isn't `medium`, add `/effort <effort>` before the `/pickup` in that message.
+  Add `/effort <effort>` before the `/pickup` in that message (`medium` when the file has no `effort` field).
 
   Switching now means the full handover goes to the right model the first time. Loading it first and switching afterwards makes the model re-read the whole context uncached, because the prompt cache is per model (full input price on API credits, more of the usage limits on a Pro or Max plan). On "continue", go on to Step 3. The handover's own first-action check still decides whether its template can run on this model.
 - **Same tier, stronger, or you can't tell:** go on. The receipt's `model` line says which.
 
-Effort is not gated, because you can't reliably read this chat's effort level. The receipt shows the handover's effort instead (Step 4). Older handovers have no `effort` field; treat a missing field as `medium`.
+Effort is not gated, because you can't reliably read this chat's effort level. The receipt reminds the user of it instead (Step 4). Older handovers have no `effort` field; treat a missing field as `medium`.
 
 ## Step 3: Load it in full
 
@@ -86,7 +86,7 @@ Then print the receipt, with every line backed by a check above:
   waiting   <W> other handover(s) for <repo>
 ```
 
-When the handover's effort isn't `medium`, add one line under `model`: `effort    run /effort <effort> if this chat isn't already on it`.
+Always add one line under `model`: `effort    run /effort <effort> if this chat isn't already on it`. Print it even for `medium`: an effort chosen with `/effort` is saved per model and carries into later sessions, so this chat may not be on Claude Code's built-in `medium`.
 
 ## Step 5: Start on it
 

@@ -20,15 +20,20 @@ Newest first. Each entry records what prompted the change, the evidence, what ch
 **What changed.**
 
 - `handover/SKILL.md` Step 4: the orchestrator is sized to the phase's shape. `sonnet` is for a phase whose tasks and executable exit criteria are already written down, which is also the shape Template A fits. `opus` is the default when unsure. `fable` is for major refactors, migrations, architecture planning, phases leading many subagents, long unattended runs, or when `opus` at `high` already fell short. A new effort rule: `medium` by default, `high` only on evidence, and never `xhigh` or `max` (recommend the next tier instead).
-- The handover carries the effort in its frontmatter (`effort:`), header callout and receipt. The receipt prints `/effort <level>` only when the level isn't `medium`, and the closing line uses `claude --model … --effort …`. The from-disk check now fails on an unfilled `<recommended effort>`.
+- The handover carries the effort in its frontmatter (`effort:`), header callout and receipt. The receipt always prints `/effort <level>`, and the closing line uses `claude --model … --effort …`. The from-disk check now fails on an unfilled `<recommended effort>`.
 - Both execution models (`references/execution-model.md`, `references/execution-model-goal-directed.md`): current prices, `haiku` limited to read-and-report work, an escalation order (verification → effort → tier), the low-first re-run pattern, and explicit `model: haiku` for cheap exploration. The goal-directed version also notes that a lean orchestrator context matters more the bigger the model, because long runs bill mostly as cache reads.
-- `pickup/SKILL.md`: lists the effort next to the model, adds `/effort` to the switch message and the receipt when it isn't `medium`, and treats a missing field (older handovers) as `medium`. Effort is not gated, because a chat can't reliably read its own effort level.
+- `pickup/SKILL.md`: lists the effort next to the model, adds `/effort` to the switch message and an effort reminder to the receipt, and treats a missing field (older handovers) as `medium`. Effort is not gated, because a chat can't reliably read its own effort level.
 
 **Considered and rejected.**
 
 - *Defaulting every orchestrator to `opus`.* The post's "start on Opus" is for unknown work. A phase from a written plan with explicit tasks is the spec-driven case it sends to Sonnet 5.5. So the rule keys on the phase's shape, and `opus` is the default only when that shape is unclear.
 - *Sending Sonnet 5.5 the goal-directed Template B.* Nothing in the post says Sonnet 5.5 plans better without a procedure. Its advice to write "precisely enough for the most literal model" points the other way, so Template A stays.
 - *Gating `/pickup` on effort as it gates on model.* The chat can't read its own effort reliably, so a gate would guess. The receipt shows it instead.
+
+**What review caught (CodeRabbit CLI on PR #47).**
+
+- The first draft printed `/effort` only for non-`medium` handovers, on the theory that `medium` is Claude Code's default. But `/effort` is saved per model (`modelSettings.<model>.effortLevel` in `~/.claude/settings.json`) and carries into later sessions. This machine has Opus 5.5 saved at `high`, so a `medium` handover would have silently run at `high`. The step is now always printed.
+- Eval 0 still expected Template A's sections even when the new rules pick `opus`, which takes Template B. It now expects the sections of whichever template the recommended model takes.
 
 **What the pass caught along the way.**
 
