@@ -17,7 +17,8 @@ root="$HOME/.claude/handovers"
 c=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) && repo=$(basename "$(dirname "$c")") || repo=$(basename "$PWD")
 echo "repo: $repo  cwd: $PWD"
 ls -r "$root/$repo"/*.md 2>/dev/null | while IFS= read -r f; do
-  echo "$(basename "$f") | $(sed -n 's/^title: //p' "$f" | head -1) | model $(sed -n 's/^model: //p' "$f" | head -1) | branch $(sed -n 's/^branch: //p' "$f" | head -1) | $(sed -n 's/^kind: //p' "$f" | head -1)"
+  e=$(sed -n 's/^effort: //p' "$f" | head -1)
+  echo "$(basename "$f") | $(sed -n 's/^title: //p' "$f" | head -1) | model $(sed -n 's/^model: //p' "$f" | head -1)${e:+ at $e} | branch $(sed -n 's/^branch: //p' "$f" | head -1) | $(sed -n 's/^kind: //p' "$f" | head -1)"
 done
 echo "other repos waiting:"; for d in "$root"/*/; do n=$(ls "$d"*.md 2>/dev/null | wc -l); [ "$n" -gt 0 ] && [ "$(basename "$d")" != "$repo" ] && echo "  $(basename "$d"): $n"; done
 echo "recently picked up:"; ls -r "$root/$repo/picked-up"/*.md 2>/dev/null | head -3 | while IFS= read -r f; do basename "$f"; done
@@ -32,7 +33,7 @@ Arguments passed: "$ARGUMENTS" (empty quotes mean none). They decide the path:
 - **Empty.** Use this repo's pending queue.
   - **None waiting:** say so and show the "other repos" and "recently picked up" lines, so the user can see where things are. Offer to reload a recent one. Stop there.
   - **Exactly one:** load it. No question needed; the receipt in Step 4 shows what was loaded.
-  - **Two or more:** let the user pick, newest first. Use AskUserQuestion with up to four options: label = the short title; description = age ("2h ago", "3 days ago"), model, branch, kind. With more than four, print a numbered table instead and ask for the number. Never silently take the newest; parallel phases and abandoned hops both leave several waiting.
+  - **Two or more:** let the user pick, newest first. Use AskUserQuestion with up to four options: label = the short title; description = age ("2h ago", "3 days ago"), model (and effort, when set), branch, kind. With more than four, print a numbered table instead and ask for the number. Never silently take the newest; parallel phases and abandoned hops both leave several waiting.
 - **`all`.** List pending handovers across every repo, grouped by repo, then pick the same way.
 - **Any other text.** Match it against filenames and titles in this repo's pending and `picked-up/` files, then every repo's if there's no match. One match loads; several means the user picks. This is how an already-used handover gets reloaded.
 
@@ -40,8 +41,12 @@ Arguments passed: "$ARGUMENTS" (empty quotes mean none). They decide the path:
 - **This chat is weaker:** stop here. Don't read the rest of the file, and don't archive it. Say:
   > This handover wants `<model>`, but this chat is on `<current>`. Run `/model <model>`, then `/pickup <file name without .md>`. Or reply "continue" to load it on `<current>` anyway.
 
+  When the file's `effort` field is set and isn't `medium`, add `/effort <effort>` before the `/pickup` in that message.
+
   Switching now means the full handover goes to the right model the first time. Loading it first and switching afterwards makes the model re-read the whole context uncached, because the prompt cache is per model (full input price on API credits, more of the usage limits on a Pro or Max plan). On "continue", go on to Step 3. The handover's own first-action check still decides whether its template can run on this model.
 - **Same tier, stronger, or you can't tell:** go on. The receipt's `model` line says which.
+
+Effort is not gated, because you can't reliably read this chat's effort level. The receipt shows the handover's effort instead (Step 4). Older handovers have no `effort` field; treat a missing field as `medium`.
 
 ## Step 3: Load it in full
 
@@ -75,11 +80,13 @@ Then print the receipt, with every line backed by a check above:
 ✓ Picked up — <title>
   file      ~/.claude/handovers/<repo>/picked-up/<name>.md   (<L> lines, read in full)
   written   <YYYY-MM-DD HH:MM> (<age>) · branch <branch> · <kind> · from session <from_session>
-  model     handover wants <model> · this chat is on <current>   ✓ | ⚠ higher than needed | ⚠ loaded on a weaker model at your request | ⚠ can't tell which model this chat is on
+  model     handover wants <model> at <effort> effort · this chat is on <current>   ✓ | ⚠ higher than needed | ⚠ loaded on a weaker model at your request | ⚠ can't tell which model this chat is on
   fresh?    ✓ no commits since written | ⚠ <N> commits since written on <ref>; re-verifying status
   archived  ✓ moved to picked-up/ (reload any time: /pickup <search text>)
   waiting   <W> other handover(s) for <repo>
 ```
+
+When the handover's effort isn't `medium`, add one line under `model`: `effort    run /effort <effort> if this chat isn't already on it`.
 
 ## Step 5: Start on it
 

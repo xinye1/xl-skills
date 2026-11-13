@@ -90,21 +90,23 @@ metadata:
 
 Why memory now, not later: the details fade fast. The next chat inherits the handover, but the chat *after that* might be a week later — the memory is what lets future conversations reconstruct what actually happened.
 
-## Step 4: Choose the orchestrator model, then write the matching handover prompt
+## Step 4: Choose the orchestrator model and effort, then write the matching handover prompt
 
-**First choose the recommended orchestrator model** (`sonnet`, `opus`, or `fable`). The orchestrator decomposes tasks, coordinates subagents, and runs integration validation, so it needs real reasoning capacity:
+**First choose the recommended orchestrator model** (`sonnet`, `opus`, or `fable`). The orchestrator decomposes tasks, coordinates subagents, and runs integration validation. It holds the phase's judgement calls while subagents do the verbose reading. Size it to the phase's shape, using Anthropic's model-selection guidance (["Which Claude model should you build with?"](https://claude.dev/blog/which-claude-model-should-you-build-with/), 2026-11-09):
 
-- **Default to `sonnet`** — a well-planned phase with a clear task list needs coordination, not frontier reasoning.
-- **Recommend `opus`** when the phase carries significant integration complexity, cross-cutting refactors, or architectural decisions where the orchestrator's own judgment is load-bearing.
-- **Recommend `fable`** (the frontier tier above `opus`, at roughly 2.5× its price) for the phase where the orchestration itself is the hardest part: long-horizon, high-autonomy phases coordinating many parallel or long-running subagents; deep ambiguity the orchestrator must resolve rather than escalate; or plan-shaping decisions whose blast radius spans the remaining phases. If `opus` would orchestrate this phase equally well, `opus` is the right call — but on a *genuine* opus/fable boundary, note that Fable at low effort often matches or beats prior tiers pushed to high effort, so end-to-end (tokens + redone work + your time) it can be the cheaper choice.
+- **`sonnet`: a well-scoped phase.** The plan lists this phase's tasks explicitly, every exit criterion is an executable check (tests, lint, a merged PR), and no open design call is left for the orchestrator. That is spec-driven work, which the guidance gives to Sonnet 5.5, and it is the shape a prescriptive Template A fits.
+- **`opus`: anything else, and the default when you're unsure.** Use it when the phase has integration complexity, cross-cutting refactors, architectural decisions where the orchestrator's own judgement is load-bearing, or a task list it must derive itself. The guidance's starting point for most work is Opus 5.5 at `medium`.
+- **`fable`: the hardest phases.** These are major refactors and migrations, architecture planning that shapes the remaining phases, phases leading many parallel or long-running subagents, and long unattended runs. Also choose it when an earlier phase on `opus` at `high` still fell short. Fable 5.2 costs 2× Opus 5.5 per token. Per task the gap is narrower: on a hard coding benchmark, Fable 5.2 at `high` matched Opus 5.5 at `max` for about half the cost. So on a genuine opus/fable boundary it can be the cheaper choice end to end (tokens, redone work and your time). If `opus` would orchestrate the phase equally well, choose `opus`.
 - **Never recommend `haiku`** for the orchestrator.
 
-(This is separate from per-task subagent models — those are sized per task in the execution model.)
+**Then choose the effort level: `medium` by default.** `medium` is the Claude Code default for all three tiers. Recommend `high` only when this model already fell short at `medium` on comparable work, for example missed integration bugs or redone tasks. Change effort before you change model, because raising effort is the cheaper fix. Past `high` the order flips: one more effort level can cost as much as the next model up, so recommend the next tier at `medium` rather than `xhigh` or `max`. Effort does not add knowledge or skill the model lacks; only a bigger model does that.
+
+(This is separate from per-task subagent models and effort, which the execution model sizes per task.)
 
 **The model determines the prompt style.** Matching prompt shape to model tier is what gets the optimal outcome at the lowest token-and-time cost:
 
 - **`sonnet` → Template A (prescriptive).** Explicit steps, checklists, a verbatim procedure — the scaffold is what keeps a mid-tier orchestrator's delegation and validation gates on rails.
-- **`opus` / `fable` → Template B (goal-directed).** Both plan better than a prescriptive procedure, and the procedure gets in the way: they follow instructions closely and literally, so a flawed step gets followed faithfully. Give them the goal *with the why* (they use intent to make micro-decisions you can't enumerate), the context, and hard constraints; let them own the orchestration plan and steer at outcome level. Never send them Template A. (`opus` here means Opus 5 or later — it shares Fable 5.1's always-on reasoning, and Anthropic's guidance for current models is that step-by-step scripts for judgement work lower output quality. An older Opus is mid-tier: give it Template A.)
+- **`opus` / `fable` → Template B (goal-directed).** Both plan better than a prescriptive procedure, and the procedure gets in the way: they follow instructions closely and literally, so a flawed step gets followed faithfully. Give them the goal *with the why* (they use intent to make micro-decisions you can't enumerate), the context, and hard constraints; let them own the orchestration plan and steer at outcome level. Never send them Template A. (`opus` here means Opus 5 or later. Opus 5.5 and Fable 5.2 always reason before answering, and Anthropic's guidance for current models is that step-by-step scripts for judgement work lower output quality. An older Opus is mid-tier, so give it Template A.)
 
 **Write the chosen template into the handover file (Step 5), not into the chat.** The file holds the literal markdown source, markup and all, and `/pickup` loads it verbatim. Asking the user to drag-select dozens of lines out of a terminal is the friction this design exists to remove. **Do not "tighten up" or summarise the chosen template** — every section is load-bearing; Template B is already the lean variant, its brevity is designed, not a licence to trim further.
 
@@ -112,14 +114,14 @@ Fill every section. For mid-phase handovers, the status lists what's done vs. ou
 
 **Inline the execution model.** Each template has a REQUIRED slot: fill it verbatim with `references/execution-model.md` (Template A) or `references/execution-model-goal-directed.md` (Template B) — both in this skill's folder. Do not paraphrase, trim, or cross-wire them (the goal-directed file is constraints-and-intent, the other is a procedure — that difference is the whole point). The emitted prompt must be self-contained: the receiving chat may not load this skill, so the model travels inside the prompt.
 
-**Placeholders:** replace *every* `<recommended orchestrator model>` placeholder in the header block — the H1 title suffix, the ⚠️ callout, and every occurrence in the model check (Template A's "Before you start" section, Template B's "first action" paragraph). A raw placeholder in the self-check tells the receiving agent to compare itself against the literal string, which breaks the check. In both templates, **leave `<your current model>` verbatim** — that's the one placeholder the receiving agent fills at runtime from its own environment, not you.
+**Placeholders:** replace *every* `<recommended orchestrator model>` and `<recommended effort>` placeholder in the header block — the H1 title suffix, the ⚠️ callout, and every occurrence in the model check (Template A's "Before you start" section, Template B's "first action" paragraph). A raw placeholder in the self-check tells the receiving agent to compare itself against the literal string, which breaks the check. In both templates, **leave `<your current model>` verbatim** — that's the one placeholder the receiving agent fills at runtime from its own environment, not you.
 
 ### Template A — prescriptive (orchestrator: `sonnet`)
 
 ~~~markdown
 # Handover — <project name>, Phase <target-phase> (<"start" | "continue">) — orchestrate on `<recommended orchestrator model>`
 
-> **⚠️ Set your model to `<recommended orchestrator model>` before continuing.** If this chat is on a weaker model, switch with `/model` now.
+> **⚠️ Set your model to `<recommended orchestrator model>` at `<recommended effort>` effort before continuing.** If this chat is on a weaker model, switch with `/model` now. If its effort differs, set it with `/effort <recommended effort>`.
 
 ## Before you start — orchestrator model check
 
@@ -214,7 +216,7 @@ Goals, reasoning, and constraints — no numbered procedure. The "why" in the Go
 ~~~markdown
 # Handover — <project name>, Phase <target-phase> (<"start" | "continue">) — orchestrate on `<recommended orchestrator model>`
 
-> **⚠️ Set your model to `<recommended orchestrator model>` before continuing.** If this chat is on a weaker model, switch with `/model` now.
+> **⚠️ Set your model to `<recommended orchestrator model>` at `<recommended effort>` effort before continuing.** If this chat is on a weaker model, switch with `/model` now. If its effort differs, set it with `/effort <recommended effort>`.
 
 **As your very first action:** check the model you are running as. Capability order is `haiku` < `sonnet` < `opus` < `fable`, and an Opus older than 5 ranks with `sonnet`. If you are on something weaker than `<recommended orchestrator model>`, stop and ask the user to switch with `/model` before doing any work. If they decline: on `opus` 5 or later (when `fable` was recommended) this prompt's style still fits — proceed once they explicitly say "continue"; on `sonnet` or an older `opus`, do not proceed on this prompt — a goal-only prompt lets a mid-tier orchestrator drift, so ask them to have it regenerated in the prescriptive style (the authoring chat's `handover` skill, Template A); on `haiku` or an unrecognised model there is no valid template — ask them to switch to `sonnet`, `opus`, or `fable`, and never orchestrate on `haiku`.
 
@@ -274,6 +276,7 @@ repo: <repo>
 cwd: <absolute working directory>
 branch: <branch the next chat works on>
 model: <recommended orchestrator model>
+effort: <recommended effort>
 kind: <end-of-phase | mid-phase>
 written: <YYYY-MM-DDTHH:MM, local time>
 from_session: ${CLAUDE_SESSION_ID}
@@ -288,7 +291,7 @@ f="<absolute path>"; d=$(dirname "$f")
 test -s "$f" && echo "saved: $(wc -l <"$f") lines" || echo "FAIL: missing or empty"
 grep -q '^# Handover — ' "$f" && echo "ok: title" || echo "FAIL: no '# Handover —' title"
 grep -qE 'Default: every task in this phase is delegated|Constraints and intent, not a procedure' "$f" && echo "ok: execution model inlined" || echo "FAIL: execution model missing"
-grep -qE 'REQUIRED SLOT|<recommended orchestrator model>' "$f" && echo "FAIL: unfilled slot or placeholder" || echo "ok: no unfilled placeholders"
+grep -qE 'REQUIRED SLOT|<recommended orchestrator model>|<recommended effort>' "$f" && echo "FAIL: unfilled slot or placeholder" || echo "ok: no unfilled placeholders"
 tail -n 3 "$f" | grep -q 'handover` skill' && echo "ok: complete to the end" || echo "FAIL: file looks cut off (closing section missing)"
 echo "waiting in $(basename "$d"): $(ls "$d"/*.md 2>/dev/null | wc -l)"
 ```
@@ -301,19 +304,22 @@ Any `FAIL`: fix the file and re-run the check. Never show a green receipt over a
 ✓ Handover saved — <title>
   file      ~/.claude/handovers/<repo>/<name>.md
   checks    ✓ <L> lines re-read from disk  ✓ execution model inlined  ✓ no unfilled placeholders  ✓ complete to the end
-  model     this phase wants <recommended> · this chat is on <current>   ✓ nothing to switch | ⚠ switch after /clear | ⚠ higher than this phase needs | ⚠ can't tell
+  model     this phase wants <recommended> at <effort> effort · this chat is on <current>   ✓ nothing to switch | ⚠ switch after /clear | ⚠ higher than this phase needs | ⚠ can't tell
   waiting   <W> handover(s) for <repo>
   this chat ${CLAUDE_SESSION_ID}  (optional: claude --resume <id>; the file stands alone)
 
 Next, in this terminal (/clear first: until then, any message re-sends this whole chat):
   1. /clear                 ← this chat stays saved on disk
   2. /model <recommended>   ← only when the model line shows ⚠
-  3. /pickup
+  3. /effort <effort>       ← only when the effort is not medium
+  4. /pickup
 
-Closing the terminal instead? Later, in <cwd>:  claude --model <recommended>, then /pickup
+Closing the terminal instead? Later, in <cwd>:  claude --model <recommended> --effort <effort>, then /pickup
 ```
 
-**Why `/clear` comes before `/model`.** Neither command sends anything, so what matters is the next message. Before `/clear`, a stray message re-sends the whole old chat. On the same model most of it is a cheap cache hit. After `/model` it is a full uncached read, because the prompt cache is per model, and the new model is often the pricier one. On API credits that is the full input price for the whole chat; on a Pro or Max plan it takes a much bigger bite of the usage limits. With `/clear` first, a stray message only costs the nearly empty fresh chat. `/clear` also wipes the receipt from the screen, and `/pickup` covers for that: it reads the handover's `model` field and stops before loading if the chat is on a weaker model.
+Number the steps that are printed consecutively; a left-out step leaves no gap.
+
+**Why `/clear` comes before `/model`.** Neither command sends anything, so what matters is the next message. Before `/clear`, a stray message re-sends the whole old chat. On the same model most of it is a cheap cache hit. After `/model` it is a full uncached read, because the prompt cache belongs to the model that wrote it, and the new model is often the pricier one. On API credits that is the full input price for the whole chat; on a Pro or Max plan it takes a much bigger bite of the usage limits. With `/clear` first, a stray message only costs the nearly empty fresh chat. `/clear` also wipes the receipt from the screen, and `/pickup` covers for that: it reads the handover's `model` field and stops before loading if the chat is on a weaker model.
 
 **The `model` line decides whether the `/model` step is printed.** Compare the recommended model with the model you are running as (from your environment / system context, the same source the handover's own first-action check reads), by tier: `haiku` < `sonnet` < `opus` < `fable`, with an Opus older than 5 ranked as `sonnet` (it is mid-tier, the reason it gets Template A).
 - **Same tier:** the line ends `✓ nothing to switch`, and the `/model` step is left out (print `/clear` then `/pickup` as steps 1 and 2). The line stays so the user can see why there is no `/model` step.
@@ -322,7 +328,9 @@ Closing the terminal instead? Later, in <cwd>:  claude --model <recommended>, th
 
 If you can't tell which model you are running as, end the line `⚠ can't tell` and print the `/model` step.
 
-**The closing-the-terminal line** covers a reboot, or a hop left for another day. Nothing needs clearing then, because closing the terminal already ends the chat and leaves it on disk. It uses `claude --model`, which sets the model for that one session. `/model` also saves the choice as the default for every new session, so one `/model fable` would make each later `claude` start on `fable`. Fill `<cwd>` with the working directory from the frontmatter. Print the line even when the models match, so it always shows which model to start on.
+**The effort step.** `medium` is Claude Code's default effort for `sonnet`, `opus` and `fable`, and you can't reliably read this chat's own effort level. So print the `/effort` step only when the handover recommends something other than `medium`, and always show the effort on the `model` line. Like `/model`, `/effort` sends nothing, so it goes after `/clear` too.
+
+**The closing-the-terminal line** covers a reboot, or a hop left for another day. Nothing needs clearing then, because closing the terminal already ends the chat and leaves it on disk. It uses `claude --model` and `--effort`, which set the model and effort for that one session. `/model` also saves the choice as the default for every new session, so one `/model fable` would make each later `claude` start on `fable`. Fill `<cwd>` with the working directory from the frontmatter. Print the line even when the models match, so it always shows which model to start on.
 
 Then stop. Do not print the handover body, and do not offer to start the next phase here. If the user wants to carry on in this chat anyway, they'll say so, but the default after a handover is always: this chat is done.
 
@@ -336,7 +344,8 @@ Then stop. Do not print the handover body, and do not offer to start the next ph
 | Summarising the plan instead of referencing it | The plan file is authoritative. The handover points at it; it does not replace it. Rewriting the plan in the handover invites drift. |
 | Trimming the template to be "more concise" | Every section is load-bearing. Trimming always seems harmless in the moment and always bites the next chat. |
 | Leaking long secrets inline | Handover files persist on disk indefinitely and get copied into other chats and notes. Reference the secret store; only inline values the user has explicitly authorised inline. |
-| Recommending `fable` or `opus` "to be safe" | The premium tiers pay off only where the orchestration or task is genuinely beyond the tier below (list prices scale ~1:2:4:10 haiku→fable). On routine phases they burn a multiple of the necessary spend for the same outcome. Size the model to the phase — in both directions. |
+| Recommending `fable` "to be safe", or `opus` for a well-scoped phase | The premium tiers pay off only where the orchestration is genuinely beyond the tier below. Input list prices run Sonnet 5.5 $2, Opus 5.5 $4 and Fable 5.2 $8 per MTok (1 : 2 : 4). On a phase whose tasks and checks are already written down, a premium orchestrator burns a multiple of the necessary spend for the same outcome. Size the model to the phase, in both directions; `opus` is the default only when you can't tell. |
+| Recommending `xhigh` or `max` effort | Past `high`, one more effort level can cost as much as the next model up, and effort adds no knowledge the model lacks. Recommend the next tier at `medium` instead. |
 | Sending `opus` / `fable` the prescriptive template (A) | They follow flawed steps faithfully and plan better without them — the crutches get in the way. They get goal + why + context + constraints (Template B) and own the orchestration plan. |
 | Sending `sonnet` the goal-directed template (B) | The prescriptive scaffold is what keeps a mid-tier orchestrator's delegation gate and validation steps on rails; goals-only prompting lets them drift. Prompt style follows the model, both directions. |
 | Naming no execution model | Without the subagent-orchestration block, the next chat defaults to executing inline and burns its context on task-level detail instead of integration-level coordination. |
