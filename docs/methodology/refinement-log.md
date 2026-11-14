@@ -41,4 +41,4 @@ Newest first. Each entry records what prompted the change, the evidence, what ch
 
 - `summarise-session/references/prices.json` had no `claude-fable-5-2` entry, so Fable 5.2 turns were reported as unpriced. Fixed in PR #46 with the pricing-page rates ($8 / $10 / $16 / $0.20 / $40; fast mode $16 / $80).
 - PR #43's idle cache re-write pricing chose Haiku 5.5's prompt-length tier from the trimmed write, not the whole request. A 115K-token request was priced at $0.0075 instead of $0.0375. Fixed in that PR.
-- Stale model prices outside handover: `adversarial-review/SKILL.md` still calls Fable "roughly 2.5×" Opus (it is 2× at Fable 5.2). Fixed in a separate follow-up PR, which cites `prices.json` as the source.
+- Stale model prices outside handover: `adversarial-review/SKILL.md` called Fable "roughly 2.5×" Opus (it is 2× at Fable 5.2). Fixed in PR #48, which cites `prices.json` as the source.
