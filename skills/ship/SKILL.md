@@ -32,7 +32,7 @@ Classify and announce the detected state in one line (e.g. "Resuming at merge fo
 | State | Signal | Entry point |
 |---|---|---|
 | **A. Uncommitted changes** | dirty tree (`git status --porcelain` non-empty), no open PR for current branch | Step 1 |
-| **A2. Committed, not pushed** | clean tree on a feature branch with no open PR AND ((commits-ahead-of-upstream > 0) OR (`no-upstream` AND commits-beyond-base > 0)) | Step 4 |
+| **A2. Committed, not pushed** | clean tree on a feature branch with no open PR AND ((commits-ahead-of-upstream > 0) OR (`no-upstream` AND commits-beyond-base > 0)) | Step 3b, then Step 4 |
 | **A3. Iteration on existing PR** | dirty tree OR commits-ahead-of-upstream > 0, on a branch whose own PR is currently open | Commit any dirty work (Step 2 logic — reuse the existing branch) and/or push (Step 5 push only — PR already exists), then re-evaluate as B / B2 / B3 / B4 |
 | **B. PR open, awaiting review** | clean tree, in sync with remote, open PR, `reviewDecision` is `null` or `REVIEW_REQUIRED` | Step 4 |
 | **B2. PR open, changes requested** | clean + in sync, open PR with `reviewDecision: CHANGES_REQUESTED` | Step 4 — fix issues first, then re-review |
@@ -119,6 +119,40 @@ If no test command can be auto-detected, state that explicitly before pushing:
 
 Silent skipping is worse than no verification, because it lets future-you assume the tests ran.
 
+## Step 3b: Prove it works in the real app (verification gate)
+
+Tests passing and a clean review say the code looks right. They are not proof that the behavior works, because neither runs the change the way a user would. This gate does, before the first push, in every CI coupling.
+
+**When it applies.** The change alters behavior a user or caller can observe: a UI, a CLI's output or exit code, an API response, data written. A change to docs, tests, comments, lint or CI config only gets one line in the PR body instead: `Verification: not applicable (<docs only | tests only | …>)`.
+
+**Who gives the verdict.** A fresh subagent that did not write the change (`Agent`, `general-purpose`). An author checks what it meant to build, so the authoring session's own checks don't count as the verdict (run them first anyway: they're cheap). Brief it with:
+
+- the diff range (`git diff origin/<base>...HEAD`) and one line on what the change is meant to do;
+- the repo's verification skill (`.claude/skills/verify-*/SKILL.md` and its `features/` map). It drives the mapped features the diff touches, through every entry point the map lists for them, and where it helps, the same journey on `origin/<base>` (in a scratch worktree) to show the before and after. Behavior the diff adds or changes that no feature file covers is a gap in the map: it adds the feature file (or the missing entry point) in this PR, following the map's own format, and drives it. It never returns a pass for changed behavior it didn't drive;
+- what to return: `PASS`, `PASS+NOTES`, `INCOMPLETE` (some changed path couldn't be driven; name it and the unmet precondition) or `FAIL`, the commit it ran on, each feature and entry point driven, the commands and what they showed, and the evidence paths;
+- keep evidence outside the repo and its worktrees, in a durable folder such as `~/verify-evidence/<repo>/<branch>/<run>/` (Step 8 deletes the worktree, and with it anything inside, ignored or not; on WSL `/tmp` is RAM-backed and a restart wipes it). If the repo's verify skill writes evidence inside the repo, copy it out before cleanup. Never commit it;
+- "do not edit product code; report what you find."
+
+**Set-up check: verification is a standard step, like review, so missing tools block.** Check these before anything else in this step. Each missing piece stops shipping until the user confirms setting it up:
+
+1. **pstack is installed** (always, even when the gate doesn't apply to this change): `pstack@cursor-plugins` is a key under `plugins` in `~/.claude/plugins/installed_plugins.json`. If it isn't, stop and ask: "Verification needs pstack (poteto's skills, MIT). Install it now?" On a yes, run `claude plugin marketplace add cursor/plugins` and `claude plugin install pstack@cursor-plugins --scope user`, and set `"autoUpdate": true` on the `cursor-plugins` entry under `extraKnownMarketplaces` in `~/.claude/settings.json`, so it follows the source.
+2. **The repo has a verification skill** (only when the gate applies): `.claude/skills/verify-*/SKILL.md`. If it doesn't, stop and ask: "This repo has no verification skill. Generate one now with pstack's `create-verification-skill`? It interviews the repo, writes the skill and a feature map, and proves it end to end once." On a yes, run the generator (below), then commit its output as its own commit on this branch (`chore(verify): add verify-<app> skill`), so the PR that first needs it carries it. Then run the gate with it.
+
+On a no, shipping stays blocked. The only way past is the user saying explicitly to ship without verification. Then the PR body says `Verification: skipped at the user's instruction (<their reason>)`, and Step 7 accepts that.
+
+**Starting a pstack skill.** pstack's skills can't be started with the Skill tool (they set `disable-model-invocation`; tested). Either the user types `/pstack:<name>`, or, with their go-ahead, you find the plugin's folder (`python3 -c "import json,os;print(json.load(open(os.path.expanduser('~/.claude/plugins/installed_plugins.json')))['plugins']['pstack@cursor-plugins'][0]['installPath'])"`), read its `docs/harness/claude-code.md`, then read `skills/<name>/SKILL.md` and follow it. A plugin installed during this session works this way at once, and its `/pstack:` commands appear from the next session. pstack supplies the generator, `create-verification-skill`, and its upkeep pass, `maintain-verification-skill`, which you suggest when a map has drifted in more than the features one change touches. Don't copy its text into this skill: it updates from the source.
+
+**On the verdict.**
+
+- `FAIL`: fix the cause, rerun Step 3, and send a fresh verifier. Don't argue a FAIL down; if the verifier drove the wrong thing, say so in the PR body with the evidence.
+- The map is wrong about an app that works (a renamed button, a new entry point): fix the map in this PR, under the verify skill's folder, and re-drive that feature.
+- Something unrelated to the diff is broken: report it to the user as a finding; keep it out of this PR and don't paper over it in the map.
+- A changed path the verifier couldn't reach (needs a login, an entitlement, an external system) makes the verdict `INCOMPLETE`, with the unmet precondition. `INCOMPLETE` doesn't pass Step 7: get the precondition met and verify again, or ask the user. Only their explicit go-ahead to skip that path lets it through, recorded in the PR body as `skipped at the user's instruction (<path>, <reason>)`.
+
+**A verdict covers the commit it ran on.** If a review fix (Step 4) or CI fix (Step 6) later changes behavior-bearing code, the verdict no longer covers the head: verify again before the next push (in a push-coupled repo, Step 4 runs before the first push) and before merging. Fixes to docs, tests or comments only don't need it; check with `git diff --stat <verdict-sha>..HEAD`.
+
+Put the verdict in the PR body (Step 5, `## Verification`): the verdict, the commit, the features and entry points driven, the key observations, and where the evidence is.
+
 ## Step 4: Independent code review
 
 Review is **mandatory before every merge** — ship never merges code that hasn't been independently reviewed. What changes is only *when* review runs relative to the push, and that's set by one repo fact: **does CI run on push, or only at a merge gate?** Determine it once, from the workflow triggers:
@@ -186,6 +220,11 @@ gh pr create [--draft] --base <base> --title "..." --body "$(cat <<'EOF'
 - [ ] <verification step>
 - [ ] <verification step>
 
+## Verification
+<PASS | PASS+NOTES | INCOMPLETE | FAIL | not applicable (reason) | skipped at the user's instruction (reason)> at <sha>, by a fresh verifier (Step 3b)
+- <feature / entry point driven>: <what was observed>
+- Evidence: <where it is>
+
 Closes #<issue>
 EOF
 )"
@@ -217,7 +256,7 @@ On failure: inspect logs (`gh run view --log-failed` for the failing run), fix t
 
 ## Step 7: Merge
 
-When the review verdict is `APPROVE` (Step 4) **and** all CI checks are green:
+When the review verdict is `APPROVE` (Step 4) **and** all CI checks are green **and** the PR carries a Step 3b verdict of `PASS` or `PASS+NOTES` that covers its head (or a reasoned `not applicable`, or `skipped at the user's instruction`). A PR resumed from Step 0 (States A2, B to B4) with no verdict in its body, or one older than a behavior-bearing change, goes through Step 3b first.
 
 ```bash
 gh pr merge <pr> --merge --delete-branch
@@ -251,9 +290,9 @@ If the worktree has uncommitted changes for some reason, this will refuse — in
 
 Report a one-table summary of everything shipped this invocation:
 
-| Branch | PR | CI | Review | Merge | Local cleanup |
-|---|---|---|---|---|---|
-| fix/foo | #42 | ✓ | APPROVE | merged | branch+worktree removed |
+| Branch | PR | Verify | CI | Review | Merge | Local cleanup |
+|---|---|---|---|---|---|---|
+| fix/foo | #42 | PASS | ✓ | APPROVE | merged | branch+worktree removed |
 
 ## Rules
 
@@ -271,6 +310,6 @@ Report a one-table summary of everything shipped this invocation:
 | `finishing-a-development-branch` | Steps 7 + 8 inline that skill's Option 1 cleanup. State A covers the "push + create PR" path (Option 2). State B is the explicit resume-point when that skill has already completed Option 2 and handed off. |
 | `requesting-code-review` | Step 4 owns review dispatch; review is mandatory before every merge. Timing follows CI coupling (Step 4): pre-push when CI runs on push, post-push (free) when CI is gated pre-merge. One primary reviewer per change set — the CodeRabbit CLI run inline (not the `coderabbit:code-reviewer` subagent, which can summarise a rate-limit abort into a false APPROVE); a same-model Claude reviewer is only the degraded fallback. |
 | `receiving-code-review` | Applied in Step 4 when consuming the reviewer's verdict: verify before implementing, push back with reasoning, no performative language. |
-| `verification-before-completion` | Step 3 (local tests + lint before push), Step 6 (CI green before merge), Step 8 (safe-delete refusal treated as a real signal, not friction). |
+| `verification-before-completion` | Step 3 (local tests + lint before push), Step 3b (a fresh verifier drives the change in the real app, with the repo's `verify-<app>` skill, generated by pstack's `create-verification-skill`, when it has one), Step 6 (CI green before merge), Step 8 (safe-delete refusal treated as a real signal, not friction). |
 
 These skills are complementary, not redundant: superpowers covers the local dev loop and the "implementation complete, what next" decision point; ship covers everything downstream of that — the remote PR lifecycle and the loop-closing local cleanup.
