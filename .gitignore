@@ -9,3 +9,5 @@ skills/*-workspace/
 skills/synced/
 # Claude Code's trash for replaced synced-skill sets
 skills/.trash/
+# git worktrees (kept inside the repo)
+.worktrees/
