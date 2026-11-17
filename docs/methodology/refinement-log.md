@@ -34,7 +34,14 @@ Newest first. Each entry records what prompted the change, the evidence, what ch
 **What the pass caught.**
 
 - The ruff advice drafted for the copy was tested with ruff. `banned-api` with `msg` prints the fix in the error. The copy is gone, but the result shows upstream's "a lint whose error names the fix" works in ruff without custom code.
-- Evidence inside a worktree: in a scratch repo, a git-ignored folder doesn't block `git worktree remove` and an untracked one would. Now part of the verifier's brief.
+- Evidence inside a worktree: in a scratch repo, a git-ignored folder doesn't block `git worktree remove` and an untracked one would. The first draft put evidence in a git-ignored folder for that reason, but removing the worktree deletes the folder too, so the PR's evidence links would die. CodeRabbit caught it (below).
+
+**What review caught (CodeRabbit CLI on PR #49: 4 findings, all fixed).**
+
+- Evidence in a git-ignored folder inside the worktree is deleted with the worktree in Step 8. It now goes in a durable folder outside the repo (`~/verify-evidence/<repo>/<branch>/<run>/`), copied out if the repo's verify skill writes it inside.
+- A changed path the verifier couldn't reach was only "reported", while Step 7 accepted `PASS+NOTES`, so an unverified path could merge. A new verdict, `INCOMPLETE`, doesn't pass Step 7. Only the user's explicit go-ahead to skip the path does, and the PR records it.
+- New behavior that no feature file covers could pass undriven. The verifier now adds the missing feature file in the same PR and drives it, and never passes changed behavior it didn't drive.
+- In a push-coupled repo, review (Step 4) runs before the first push, after the verdict. A behavior-changing review fix now needs re-verifying before the next push, not only before merge.
 
 **Survey of the rest of pstack** (the user asked which other poteto skills fit their workflow). A read-only subagent read all 58 skills at `e1cc031`. Two of its claims were spot-checked: only `setup-pstack` lacks `disable-model-invocation: true`, and `unslop` rule 13 bans dashes. With pstack installed, all of them are now available by typing `/pstack:<name>`. The shortlist for wiring into these skills:
 

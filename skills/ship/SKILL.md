@@ -128,9 +128,9 @@ Tests passing and a clean review say the code looks right. They are not proof th
 **Who gives the verdict.** A fresh subagent that did not write the change (`Agent`, `general-purpose`). An author checks what it meant to build, so the authoring session's own checks don't count as the verdict (run them first anyway: they're cheap). Brief it with:
 
 - the diff range (`git diff origin/<base>...HEAD`) and one line on what the change is meant to do;
-- the repo's verification skill (`.claude/skills/verify-*/SKILL.md` and its `features/` map). It drives the mapped features the diff touches, through every entry point the map lists for them, and where it helps, the same journey on `origin/<base>` (in a scratch worktree) to show the before and after;
-- what to return: `PASS`, `PASS+NOTES` or `FAIL`, the commit it ran on, each feature and entry point driven, the commands and what they showed, and the evidence paths;
-- keep evidence in a git-ignored folder or outside the repo, never in a commit, and not under a RAM-backed `/tmp` (WSL); a git-ignored folder doesn't block `git worktree remove` in Step 8;
+- the repo's verification skill (`.claude/skills/verify-*/SKILL.md` and its `features/` map). It drives the mapped features the diff touches, through every entry point the map lists for them, and where it helps, the same journey on `origin/<base>` (in a scratch worktree) to show the before and after. Behavior the diff adds or changes that no feature file covers is a gap in the map: it adds the feature file (or the missing entry point) in this PR, following the map's own format, and drives it. It never returns a pass for changed behavior it didn't drive;
+- what to return: `PASS`, `PASS+NOTES`, `INCOMPLETE` (some changed path couldn't be driven; name it and the unmet precondition) or `FAIL`, the commit it ran on, each feature and entry point driven, the commands and what they showed, and the evidence paths;
+- keep evidence outside the repo and its worktrees, in a durable folder such as `~/verify-evidence/<repo>/<branch>/<run>/` (Step 8 deletes the worktree, and with it anything inside, ignored or not; on WSL `/tmp` is RAM-backed and a restart wipes it). If the repo's verify skill writes evidence inside the repo, copy it out before cleanup. Never commit it;
 - "do not edit product code; report what you find."
 
 **Set-up check: verification is a standard step, like review, so missing tools block.** Check these before anything else in this step. Each missing piece stops shipping until the user confirms setting it up:
@@ -147,9 +147,9 @@ On a no, shipping stays blocked. The only way past is the user saying explicitly
 - `FAIL`: fix the cause, rerun Step 3, and send a fresh verifier. Don't argue a FAIL down; if the verifier drove the wrong thing, say so in the PR body with the evidence.
 - The map is wrong about an app that works (a renamed button, a new entry point): fix the map in this PR, under the verify skill's folder, and re-drive that feature.
 - Something unrelated to the diff is broken: report it to the user as a finding; keep it out of this PR and don't paper over it in the map.
-- A path the verifier couldn't reach (needs a login, an entitlement, an external system) is reported with the unmet precondition. It isn't verified, and the PR body says so.
+- A changed path the verifier couldn't reach (needs a login, an entitlement, an external system) makes the verdict `INCOMPLETE`, with the unmet precondition. `INCOMPLETE` doesn't pass Step 7: get the precondition met and verify again, or ask the user. Only their explicit go-ahead to skip that path lets it through, recorded in the PR body as `skipped at the user's instruction (<path>, <reason>)`.
 
-**A verdict covers the commit it ran on.** If a review fix (Step 4) or CI fix (Step 6) later changes behavior-bearing code, the verdict no longer covers the head: verify again before merging. Fixes to docs, tests or comments only don't need it; check with `git diff --stat <verdict-sha>..HEAD`.
+**A verdict covers the commit it ran on.** If a review fix (Step 4) or CI fix (Step 6) later changes behavior-bearing code, the verdict no longer covers the head: verify again before the next push (in a push-coupled repo, Step 4 runs before the first push) and before merging. Fixes to docs, tests or comments only don't need it; check with `git diff --stat <verdict-sha>..HEAD`.
 
 Put the verdict in the PR body (Step 5, `## Verification`): the verdict, the commit, the features and entry points driven, the key observations, and where the evidence is.
 
@@ -221,7 +221,7 @@ gh pr create [--draft] --base <base> --title "..." --body "$(cat <<'EOF'
 - [ ] <verification step>
 
 ## Verification
-<PASS | PASS+NOTES | FAIL | not applicable (reason) | skipped at the user's instruction (reason)> at <sha>, by a fresh verifier (Step 3b)
+<PASS | PASS+NOTES | INCOMPLETE | FAIL | not applicable (reason) | skipped at the user's instruction (reason)> at <sha>, by a fresh verifier (Step 3b)
 - <feature / entry point driven>: <what was observed>
 - Evidence: <where it is>
 
