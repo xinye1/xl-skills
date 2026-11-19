@@ -22,20 +22,23 @@ Newest first. Each entry records what prompted the change, the evidence, what ch
   - where the docs come from, including copying decisions held only in the decision log or the chat into the repo docs;
   - the template, with fixed headings agents can rely on: `## Why`, `## For the reviewer` (decisions ranked by cost of reversal, linked to their doc section), `## Docs`, `## Docs ↔ code`, `## Change map`, then the existing test, verification and review sections;
   - links: at the head commit, since merging deletes the branch, with the repo path beside each for an agent;
-  - the brief for the docs ↔ code check.
+  - the brief for the docs ↔ code check. The check runs on the default model tier (`sonnet`), or `opus` for a large diff that spans many modules. It can run alongside the Step 3b verifier.
+  - Decisions are ranked by what's costliest to reverse, then by money or risk, then by behaviour users see, then by internal structure, as in `review-focus`.
+  - The docs section also links the `adversarial-review` log beside a spec. Docs outside the repo (an issue, a wiki page) are linked, and any decision the description depends on is quoted, since an agent reviewer may not be able to open them.
 - `ship` gains Step 3c before the first push:
   - It sizes the change and finds the docs.
   - It stops and offers to write a doc when the change needs one and has none. Only the user's explicit word skips this, and the skip is recorded.
   - It sends a fresh subagent with the diff range and the doc paths only, never a summary. The subagent reports decisions not implemented as written, and changes the docs don't cover.
-  - Every gap is resolved before review is requested: update a stale doc, fix the code, or list the difference. The verdict covers the commit it ran on, like Step 3b's.
-- `ship` Step 5 builds the body from the template through `--body-file`. When it refreshes the body later, it keeps blocks other tools append (CodeRabbit's summary).
+  - Every gap is resolved before review is requested: update a stale doc, fix the code, or list the difference. The verdict covers the commit it ran on, like Step 3b's. A later fix that changes behaviour or structure means running the check again before the next push and before merging. A fix to formatting, comments or tests only doesn't.
+- `ship` Step 5 builds the body from the template through `--body-file`. When it refreshes the body later, it keeps blocks other tools append (CodeRabbit's summary). With `--body-file`, gh no longer applies a repo's `.github/pull_request_template.md` by itself, so the sections are fitted into the template's headings.
 - `ship` Step 7 needs a docs ↔ code verdict that covers the head. If the body changes after a teammate approved, they are told what changed. The summary table gains a column, and State A2 enters through 3b and 3c.
 - `grill-into-design` records each answer in the spec as it lands. The spec leads with a short intent, keeps a grill record (quoting the user where they overrode the recommendation), and has a "Changes during implementation" section, which the docs ↔ code check feeds.
 - `review-focus` covers the reviewer's side. Asked to review a teammate's PR, it:
   - treats the description as the author's claims;
   - checks that the docs ↔ code verdict covers the head, and runs the check itself if not;
   - gives the usual numbered guide, plus where the code and the docs part ways;
-  - posts the review only on the user's word.
+  - posts the review only on the user's word;
+  - offers a correctness or structure review (`/code-review`, `nuclear-code-review`) when the user wants one, rather than folding it into the guide.
 
 **Considered and rejected.**
 
@@ -45,6 +48,17 @@ Newest first. Each entry records what prompted the change, the evidence, what ch
 - *Giving the checker the draft description.* That is the author's framing. A checker told the intent in other words confirms it. It gets the docs and the diff, as `adversarial-review` and `nuclear-code-review` get only committed context.
 - *A new reviewer-side skill.* `review-focus` already produces exactly this guide for documents someone signs off. A PR is that document plus a check, so it was extended instead. It can be split out if the PR part grows.
 - *Changing `nuclear-code-review` or `adversarial-review`.* Both already treat committed docs as context they may question, and neither should read a PR body, which is author framing.
+
+**What the first docs ↔ code check caught (this PR, on itself).** All of the behaviour the docs described was in the skills. Six details in the skills weren't recorded in the docs:
+
+- the check's model tier;
+- the four-level ranking;
+- the review-log and outside-repo links;
+- re-running the check after a fix;
+- the `.github/pull_request_template.md` handling;
+- `review-focus` offering other reviews.
+
+In each case the code was right and the log was out of date, the case the reference calls the common one. This entry now records them.
 
 **The owner's rulings.** Four decisions were put to the owner: blocking when a needed doc is missing, decisions inline with links for detail, extending `review-focus` rather than writing a new skill, and leaving `nuclear-code-review` and `adversarial-review` alone. Their answer: "1 keep it, 2 ok, 3 ok, 4 ok."
 
