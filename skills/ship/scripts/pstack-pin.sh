@@ -100,16 +100,6 @@ installed_matches() { # are pstack's installed files the shipped plugin at commi
 	return $rc
 }
 
-lock() { # one bump at a time on this machine; mkdir is atomic everywhere
-	local d=$STATE/bump.lock.d waited=0
-	until mkdir "$d" 2>/dev/null; do
-		[ $waited -ge 600 ] && die "another bump has held $d for 10 minutes (remove it if none is running)"
-		sleep 1
-		waited=$((waited + 1))
-	done
-	trap "rmdir '$d' 2>/dev/null" EXIT # expanded now: $d is local, gone by exit time
-}
-
 FETCH_TIMEOUT=120
 fetch() { # bring the private clone up to date with upstream main
 	mkdir -p "$STATE"
@@ -224,6 +214,53 @@ print(json.dumps({"systemMessage": "pstack update available. " + first + " Claud
 	exit 0
 }
 
+LOCK_DIR=
+lock() { # one bump at a time on this machine; mkdir is atomic everywhere
+	LOCK_DIR=$STATE/bump.lock.d
+	local waited=0
+	until mkdir "$LOCK_DIR" 2>/dev/null; do
+		[ $waited -ge 600 ] && die "another bump has held $LOCK_DIR for 10 minutes (remove it if none is running)"
+		sleep 1
+		waited=$((waited + 1))
+	done
+	trap 'rmdir "$LOCK_DIR" 2>/dev/null' EXIT
+}
+
+entry() { # entry save FILE | pin SHA | restore FILE: the cursor-plugins entry in settings, and only it
+	python3 - "$SETTINGS" "$MARKETPLACE" "$REPO_SLUG" "$@" <<'EOF'
+import json, os, sys
+path, name, repo, action, arg = sys.argv[1:]
+d = json.load(open(path)) if os.path.exists(path) else {}  # malformed JSON still fails
+markets = d.setdefault("extraKnownMarketplaces", {})
+if action == "save":  # written in full before settings change, or the bump stops here
+    tmp = arg + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(markets.get(name), f)
+    os.replace(tmp, arg)
+    sys.exit(0)
+if action == "pin":
+    m = markets.setdefault(name, {})
+    m.setdefault("source", {"source": "github", "repo": repo})["ref"] = arg
+    m.pop("autoUpdate", None)  # a pinned marketplace moves only by bump
+else:  # restore: other keys may have changed meanwhile (another session), so leave them
+    before = json.load(open(arg))
+    if before is None:
+        markets.pop(name, None)
+    else:
+        markets[name] = before
+    if not markets:
+        d.pop("extraKnownMarketplaces")
+mode = os.stat(path).st_mode & 0o777 if os.path.exists(path) else 0o600
+tmp = path + ".pstack-pin.tmp"
+fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)  # never readable by others, even briefly
+with os.fdopen(fd, "w") as f:
+    json.dump(d, f, indent=2)
+    f.write("\n")
+os.chmod(tmp, mode)  # keep the file's own permissions
+os.replace(tmp, path)
+EOF
+}
+
 cmd_bump() {
 	local target=${1:-}
 	fetch || die "could not fetch $UPSTREAM"
@@ -234,43 +271,20 @@ cmd_bump() {
 	# One bump at a time on this machine, from reading the old state to the end:
 	# a rollback must not undo another session's finished bump.
 	lock
-	local old prev had_entry=0 was_installed
+	local old prev had_entry=0 was_installed saved=$STATE/entry.before-bump.json
 	old=$(pinned_ref)
 	prev=$(source_ref any)
 	was_installed=$(installed_sha)
-	python3 - "$SETTINGS" "$MARKETPLACE" <<'EOF' && had_entry=1
-import json, sys
-try:
-    sys.exit(0 if sys.argv[2] in json.load(open(sys.argv[1]))["extraKnownMarketplaces"] else 1)
-except (OSError, ValueError, KeyError, TypeError):
-    sys.exit(1)
-EOF
-	local backup=$STATE/settings.before-bump.json
-	rm -f "$backup"
-	[ -e "$SETTINGS" ] && cp -p "$SETTINGS" "$backup"
-	python3 - "$SETTINGS" "$MARKETPLACE" "$target" "$REPO_SLUG" <<'EOF' || die "could not write $SETTINGS"
-import json, os, sys
-path, name, sha, repo = sys.argv[1:]
-d = json.load(open(path)) if os.path.exists(path) else {}  # malformed JSON still fails
-mode = os.stat(path).st_mode & 0o777 if os.path.exists(path) else 0o600
-m = d.setdefault("extraKnownMarketplaces", {}).setdefault(name, {})
-m.setdefault("source", {"source": "github", "repo": repo})["ref"] = sha
-m.pop("autoUpdate", None)  # a pinned marketplace moves only by bump
-tmp = path + ".pstack-pin.tmp"
-fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)  # never readable by others, even briefly
-with os.fdopen(fd, "w") as f:
-    json.dump(d, f, indent=2)
-    f.write("\n")
-os.chmod(tmp, mode)  # keep the file's own permissions
-os.replace(tmp, path)
-EOF
-	# On a failure past this point, put the settings back and re-register the
-	# marketplace from them: a settings source that doesn't match the registered
+	entry save "$saved" || die "could not save the current entry; settings unchanged"
+	[ "$(cat "$saved")" = null ] || had_entry=1
+	entry pin "$target" || die "could not write $SETTINGS"
+	# On a failure past this point, put the entry back and re-register the
+	# marketplace from it: a settings source that doesn't match the registered
 	# one makes Claude Code ignore the marketplace, and pstack fails to load.
 	rollback() {
 		echo "pstack-pin: $1; putting the previous pin back" >&2
-		if [ -e "$backup" ]; then cp -p "$backup" "$SETTINGS"; else rm -f "$SETTINGS"; fi
-		local back=ok
+		local back=ok now
+		entry restore "$saved" || back=failed
 		if [ -n "$prev" ]; then
 			"$CLAUDE" plugin marketplace add "$REPO_SLUG#$prev" || back=failed
 		elif [ "$had_entry" = 1 ]; then
@@ -278,13 +292,16 @@ EOF
 		else
 			"$CLAUDE" plugin marketplace remove "$MARKETPLACE" --scope user || back=failed
 		fi
-		# A failed step may still have changed the plugin; reinstall it from the old pin.
-		if [ $back = ok ] && [ -n "$was_installed" ] && { [ "$(installed_sha)" != "$was_installed" ] ||
-			{ [ -n "$old" ] && [ "$was_installed" = "$old" ] && ! installed_matches "$old"; }; }; then
-			[ -n "$(installed_sha)" ] && "$CLAUDE" plugin uninstall "$PLUGIN" --scope user
+		# A failed step may still have changed the plugin: put back what was installed.
+		now=$(installed_sha)
+		if [ -z "$was_installed" ]; then
+			[ -z "$now" ] || "$CLAUDE" plugin uninstall "$PLUGIN" --scope user || back=failed
+		elif [ "$now" != "$was_installed" ] ||
+			{ [ "$was_installed" != unknown ] && ! installed_matches "$was_installed"; }; then
+			[ -z "$now" ] || "$CLAUDE" plugin uninstall "$PLUGIN" --scope user
 			"$CLAUDE" plugin install "$PLUGIN" --scope user || back=failed
 		fi
-		[ $back = ok ] || die "rollback incomplete: settings restored, but re-registering failed; run: $CLAUDE plugin marketplace add $REPO_SLUG${prev:+#$prev}${was_installed:+ && $CLAUDE plugin install $PLUGIN --scope user}"
+		[ $back = ok ] || die "rollback incomplete; check the cursor-plugins entry in $SETTINGS (it was: $(cat "$saved")), then run: $CLAUDE plugin marketplace add $REPO_SLUG${prev:+#$prev}${was_installed:+ && $CLAUDE plugin install $PLUGIN --scope user}"
 		die "$1; the pin is unchanged${old:+ at ${old:0:7}}"
 	}
 	# A source change has to be re-added before Claude Code uses it again.

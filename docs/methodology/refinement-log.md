@@ -16,7 +16,7 @@ Newest first. Each entry records what prompted the change, the evidence, what ch
 
 **What changed.**
 
-- New `skills/ship/scripts/pstack-pin.sh` (`check`, `check --hook`, `bump`, `skip`), with `test_pstack_pin.sh`: 40 checks against a fake upstream and a fake `claude`, all passing.
+- New `skills/ship/scripts/pstack-pin.sh` (`check`, `check --hook`, `bump`, `skip`), with `test_pstack_pin.sh`: 45 checks against a fake upstream and a fake `claude`, all passing.
   - The "what's new" report lists:
     - the pstack commits since the pin;
     - the skills changed, added or removed, flagging those xl-skills uses;
@@ -60,6 +60,14 @@ Newest first. Each entry records what prompted the change, the evidence, what ch
 - An update could fail after changing the files but before changing the recorded commit. The rollback now also compares the files with the old pin.
 
 **Final review, of the commit (1 finding, fixed).** The hook matched only `startup`. A fresh chat begun with `/clear` (how `handover` and `pickup` work) sends `clear`, so a long-lived Claude Code could go days without a check. The matcher is now `startup|clear`. The daily throttle keeps that to one notice. `resume` and `compact` are left out because they continue work already in progress.
+
+**Re-review of the commit (5 findings, all fixed).**
+
+- The rollback copied the whole settings file back. That would discard anything another session changed in the meantime, such as the model or another plugin. `bump` now saves only the `cursor-plugins` entry, and puts back only that entry.
+- That entry is saved before settings change, and a failed save stops the bump. Before, a failed backup copy didn't stop it.
+- The lock's `EXIT` trap quoted a path into shell code, which a `'` in the path would break. It now reads a global variable.
+- A rollback compared the files with the old pin only when the old ref was a SHA. It now compares them with the commit that was installed, whatever the ref.
+- A first install that registered and then failed was left installed. The rollback now uninstalls it.
 
 **First bump, 0.15.43 → 0.15.44.** `check` reported one upstream change. It set Gemini 4 Neon as setup-pstack's default model for one reviewer seat, and updated the matching line in `docs/harness/claude-code.md`. None of the skills xl-skills uses changed. The owner approved ("yes"), and `pstack-pin.sh bump e58dd04…` ran on this machine:
 - it re-added the marketplace at that commit;

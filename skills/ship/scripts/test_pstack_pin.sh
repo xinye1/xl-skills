@@ -32,6 +32,9 @@ mkdir "$tmp/bin"
 cat >"$tmp/bin/claude" <<'FAKE'
 #!/usr/bin/env bash
 echo "$*" >>"$CLAUDE_LOG"
+if [ "${TOUCH:-0}" = 1 ] && [ "$1 $2" = "plugin update" ]; then # another session changes an unrelated setting meanwhile
+	python3 -c "import json,sys; d=json.load(open(sys.argv[1])); d['model']='sonnet'; json.dump(d, open(sys.argv[1],'w'))" "$PSTACK_PIN_SETTINGS"
+fi
 case "$*" in ${FAIL_ON:-no-such-call}) exit 1 ;; esac
 put() { # record pstack as installed from commit $1 (none if empty), with its files in a cache folder
 	if [ -n "$1" ]; then
@@ -42,7 +45,7 @@ put() { # record pstack as installed from commit $1 (none if empty), with its fi
 	else echo '{"plugins":{}}'; fi >"$PSTACK_PIN_INSTALLED"
 }
 case "$*" in
-"plugin marketplace add "*) ref=${4#*#}; [ "$ref" = "$4" ] && ref=main; echo "$ref" >"$MKT" ;;
+"plugin marketplace add "*) ref=${4#*#}; [ "$ref" = "$4" ] && ref=main; git -C "$UP" rev-parse "$ref" >"$MKT" ;;
 "plugin marketplace remove "*) rm -f "$MKT" ;;
 "plugin update "*)
 	[ "${STALE:-0}" = 1 ] || put "$(cat "$MKT")"
@@ -52,7 +55,8 @@ case "$*" in
 		echo half-written >"$d/skills/correct/SKILL.md"
 		exit 1
 	fi ;;
-"plugin install "*) put "$(cat "$MKT")" ;;
+"plugin install "*) put "$(cat "$MKT")"
+	if [ "${PARTIAL:-0}" = 1 ]; then exit 1; fi ;; # registered, then failed
 "plugin uninstall "*) put "" ;;
 esac
 FAKE
@@ -80,6 +84,7 @@ run() { "$here/pstack-pin.sh" "$@" >"$tmp/out" 2>"$tmp/err"; echo $? >"$tmp/rc";
 rc() { [ "$(cat "$tmp/rc")" = "$1" ]; }
 out_has() { grep -qF -- "$1" "$tmp/out"; }
 out_empty() { [ ! -s "$tmp/out" ]; }
+same_json() { python3 -c "import json,sys; sys.exit(json.load(open(sys.argv[1])) != json.load(open(sys.argv[2])))" "$1" "$2"; }
 hook() { rm -f "$tmp/state/last-check"; run check --hook; }
 
 # no pin: the hook stays quiet, check says why
@@ -163,16 +168,16 @@ check "newer change: raised again" out_has "chore(pstack): arena v3"
 cp "$tmp/settings.json" "$tmp/before.json"
 : >"$CLAUDE_LOG"
 FAIL_ON="plugin marketplace add cursor/plugins#$D" run bump
-check "marketplace add fails: pin restored" eval 'rc 1 && cmp -s "$tmp/settings.json" "$tmp/before.json" && [ "$(cat "$CLAUDE_LOG")" = "plugin marketplace add cursor/plugins#$D
+check "marketplace add fails: pin restored" eval 'rc 1 && same_json "$tmp/settings.json" "$tmp/before.json" && [ "$(cat "$CLAUDE_LOG")" = "plugin marketplace add cursor/plugins#$D
 plugin marketplace add cursor/plugins#$A" ]'
 : >"$CLAUDE_LOG"
 FAIL_ON="plugin update*" run bump
-check "plugin update fails: pin restored" eval 'rc 1 && cmp -s "$tmp/settings.json" "$tmp/before.json" && [ "$(cat "$CLAUDE_LOG")" = "plugin marketplace add cursor/plugins#$D
+check "plugin update fails: pin restored" eval 'rc 1 && same_json "$tmp/settings.json" "$tmp/before.json" && [ "$(cat "$CLAUDE_LOG")" = "plugin marketplace add cursor/plugins#$D
 plugin update pstack@cursor-plugins --scope user
 plugin marketplace add cursor/plugins#$A" ]'
 : >"$CLAUDE_LOG"
 FAIL_ON="plugin*" run bump
-check "rollback re-add fails: says so" eval 'rc 1 && grep -q "rollback incomplete" "$tmp/err" && cmp -s "$tmp/settings.json" "$tmp/before.json"'
+check "rollback re-add fails: says so" eval 'rc 1 && grep -q "rollback incomplete" "$tmp/err" && same_json "$tmp/settings.json" "$tmp/before.json"'
 : >"$CLAUDE_LOG"
 
 # an update that keeps the old files (same version string) is reinstalled
@@ -206,7 +211,7 @@ installed "$A"
 # an update that changed the plugin and then failed: rollback reinstalls the old one
 : >"$CLAUDE_LOG"
 PARTIAL=1 run bump "$C"
-check "partial update: old plugin back" eval 'rc 1 && cmp -s "$tmp/settings.json" "$tmp/before.json" && python3 -c "
+check "partial update: old plugin back" eval 'rc 1 && same_json "$tmp/settings.json" "$tmp/before.json" && python3 -c "
 import json,sys; assert json.load(open(sys.argv[1]))[\"plugins\"][\"pstack@cursor-plugins\"][0][\"gitCommitSha\"]==sys.argv[2]" "$tmp/installed.json" "$A"'
 
 # an update that changed the files but not the record, then failed: reinstalled too
@@ -217,7 +222,35 @@ cp "$tmp/before.json" "$tmp/settings.json"
 echo "$A" >"$MKT"
 installed "$A"
 
+# a rollback keeps settings another session changed meanwhile
+: >"$CLAUDE_LOG"
+TOUCH=1 FAIL_ON="plugin update*" run bump "$C"
+check "rollback keeps unrelated changes" python3 -c "
+import json,sys
+d=json.load(open(sys.argv[1])); b=json.load(open(sys.argv[2]))
+assert d['model']=='sonnet' and d['extraKnownMarketplaces']==b['extraKnownMarketplaces']
+" "$tmp/settings.json" "$tmp/before.json"
+cp "$tmp/before.json" "$tmp/settings.json"
+
+# the entry can't be saved: stop before touching settings
+mkdir "$tmp/state/entry.before-bump.json.tmp"
+run bump "$C"
+check "save fails: settings unchanged" eval 'rc 1 && same_json "$tmp/settings.json" "$tmp/before.json" && grep -q "settings unchanged" "$tmp/err"'
+rmdir "$tmp/state/entry.before-bump.json.tmp"
+
+# a lock path with a quote in it is still released
+q="$tmp/O'Brien"
+mkdir -p "$q"
+cp -r "$tmp/state/cursor-plugins-full.git" "$q/"
+: >"$CLAUDE_LOG"
+PSTACK_PIN_STATE=$q FAIL_ON="plugin update*" run bump "$C"
+check "quoted lock path: released" eval '[ ! -e "$q/bump.lock.d" ]'
+cp "$tmp/before.json" "$tmp/settings.json"
+echo "$A" >"$MKT"
+installed "$A"
+
 # a branch or tag ref is re-registered as it was
+g branch release "$A"
 python3 - "$tmp/settings.json" <<'EOF2'
 import json, sys
 d = json.load(open(sys.argv[1]))
@@ -227,8 +260,11 @@ EOF2
 chmod 600 "$tmp/settings.json"
 cp -p "$tmp/settings.json" "$tmp/branch.json"
 : >"$CLAUDE_LOG"
+STALE=1 FILES_ONLY=1 run bump "$C"
+check "branch ref, files changed: old files back" eval 'rc 1 && [ "$(cat "$(put_stale_files)/skills/correct/SKILL.md")" = v1 ]'
+: >"$CLAUDE_LOG"
 FAIL_ON="plugin update*" run bump "$C"
-check "branch ref: rollback re-adds it" eval 'rc 1 && cmp -s "$tmp/settings.json" "$tmp/branch.json" && [ "$(tail -1 "$CLAUDE_LOG")" = "plugin marketplace add cursor/plugins#release" ]'
+check "branch ref: rollback re-adds it" eval 'rc 1 && same_json "$tmp/settings.json" "$tmp/branch.json" && [ "$(tail -1 "$CLAUDE_LOG")" = "plugin marketplace add cursor/plugins#release" ]'
 run bump "$C"
 check "bump keeps the settings file private" eval 'rc 0 && python3 -c "import os,stat,sys; sys.exit(stat.S_IMODE(os.stat(sys.argv[1]).st_mode)!=0o600)" "$tmp/settings.json"'
 cp "$tmp/before.json" "$tmp/settings.json"
@@ -239,7 +275,7 @@ installed "$A"
 # bump: unknown commit leaves settings alone
 cp "$tmp/settings.json" "$tmp/before.json"
 run bump 0123456789012345678901234567890123456789
-check "bump unknown: fails, settings unchanged" eval 'rc 1 && cmp -s "$tmp/settings.json" "$tmp/before.json"'
+check "bump unknown: fails, settings unchanged" eval 'rc 1 && same_json "$tmp/settings.json" "$tmp/before.json"'
 
 # bump to main: pin moves, autoUpdate goes, marketplace re-added, plugin updated
 run bump
@@ -269,6 +305,12 @@ import json,sys
 assert json.load(open(sys.argv[1]))['extraKnownMarketplaces']['cursor-plugins']['source']['ref']==sys.argv[2]
 " "$tmp/settings.json" "$B"
 
+# a first install that registers and then fails is uninstalled
+echo '{"plugins":{}}' >"$tmp/installed.json"
+: >"$CLAUDE_LOG"
+PARTIAL=1 run bump "$B"
+check "first install fails late: uninstalled" eval 'rc 1 && [ "$(tail -1 "$CLAUDE_LOG")" = "plugin uninstall pstack@cursor-plugins --scope user" ]'
+
 # no settings file at all: bump creates it
 rm -f "$tmp/settings.json"
 run bump "$B"
@@ -276,6 +318,6 @@ check "no settings file: created with the pin" eval 'rc 0 && [ "$(PSTACK_PIN_SET
 rm -f "$tmp/settings.json"
 echo '{"plugins":{}}' >"$tmp/installed.json"
 FAIL_ON="plugin install*" run bump "$B"
-check "no settings file, failed: removed again" eval 'rc 1 && [ ! -e "$tmp/settings.json" ] && grep -q "marketplace remove cursor-plugins --scope user" "$CLAUDE_LOG"'
+check "no settings file, failed: entry removed again" eval 'rc 1 && python3 -c "import json,sys; sys.exit(\"cursor-plugins\" in json.load(open(sys.argv[1])).get(\"extraKnownMarketplaces\", {}))" "$tmp/settings.json" && grep -q "marketplace remove cursor-plugins --scope user" "$CLAUDE_LOG"'
 
 [ "$fails" = 0 ] && echo "all passed" || { echo "$fails failed"; exit 1; }
