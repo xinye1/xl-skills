@@ -23,7 +23,7 @@ Newest first. Each entry records what prompted the change, the evidence, what ch
     - whether the harness doc changed;
     - a compare link.
   - Run against the real upstream, it took 2.5 s and found the 0.15.44 change.
-- A `SessionStart` hook (matcher `startup`) runs `check --hook`, at most once a day. It speaks only when pstack has moved: a one-line notice for the owner, and context asking Claude to explain what's new and ask whether to move the pin. Added to `~/.claude/settings.json` on this machine; the README gives the entry.
+- A `SessionStart` hook (matcher `startup|clear`, so a chat begun with `/clear` and `/pickup` counts) runs `check --hook`, at most once a day. It speaks only when pstack has moved: a one-line notice for the owner, and context asking Claude to explain what's new and ask whether to move the pin. Added to `~/.claude/settings.json` on this machine; the README gives the entry.
 - `ship` Step 3b's set-up check installs pstack at the recorded pin through `bump` (not `autoUpdate`), and offers the hook if it's missing.
 - `docs/upstream.md` records the pin ("Pinned at"), the ruling, and how the pin works; the README install section matches.
 - xl-skills itself stays unpinned. `~/.claude/skills` links to this checkout, so a merged change applies at once, as the owner asked.
@@ -58,6 +58,8 @@ Newest first. Each entry records what prompted the change, the evidence, what ch
 - `plugin update` picks the most specific installed scope by default. It now passes `--scope user`, like the other plugin commands.
 - Git's rename detection would report a renamed skill only under its new name. A dependency renamed upstream would then not show as removed. The report's diffs now use `--no-renames`.
 - An update could fail after changing the files but before changing the recorded commit. The rollback now also compares the files with the old pin.
+
+**Final review, of the commit (1 finding, fixed).** The hook matched only `startup`. A fresh chat begun with `/clear` (how `handover` and `pickup` work) sends `clear`, so a long-lived Claude Code could go days without a check. The matcher is now `startup|clear`. The daily throttle keeps that to one notice. `resume` and `compact` are left out because they continue work already in progress.
 
 **First bump, 0.15.43 → 0.15.44.** `check` reported one upstream change. It set Gemini 4 Neon as setup-pstack's default model for one reviewer seat, and updated the matching line in `docs/harness/claude-code.md`. None of the skills xl-skills uses changed. The owner approved ("yes"), and `pstack-pin.sh bump e58dd04…` ran on this machine:
 - it re-added the marketplace at that commit;

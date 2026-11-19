@@ -75,7 +75,7 @@ That writes the commit as the `ref` of the `cursor-plugins` marketplace in `~/.c
 ```json
 "hooks": {
   "SessionStart": [
-    { "matcher": "startup",
+    { "matcher": "startup|clear",
       "hooks": [{ "type": "command", "command": "bash ~/.claude/skills/ship/scripts/pstack-pin.sh check --hook", "timeout": 30 }] }
   ]
 }
