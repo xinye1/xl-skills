@@ -135,6 +135,6 @@ No gap goes unlisted. An unlisted gap is exactly where approving the docs stops 
 **The verdict covers the commit it ran on.** Run the check again before the next push and before merging in either case:
 
 - a later fix from review or CI changes behaviour or structure;
-- a doc it covered changes a decision. When the description is the doc, editing its `## Why` or `## For the reviewer` doesn't move the head commit, so a verdict that names the commit can't show the edit. Say in the verdict line that the description was the doc, and run the check again whenever an edit to those sections changes a decision.
+- a doc it covered changes a decision. When the description is the doc, editing its `## Why` or `## For the reviewer` doesn't move the head commit, so a verdict that names the commit can't show the edit. So the verdict line also records which text was checked: `description as the doc, sections <hash>`. The hash is the first 12 characters of the `sha256sum` of the file of checked sections the checker was given. Before merging, hash the current sections the same way. If the hash differs and a decision changed, run the check again.
 
 Fixes to formatting, comments or tests only don't need it, and neither do doc edits that change only wording. Check with `git diff --stat <checked-sha>..HEAD`.

@@ -74,6 +74,13 @@ In each case the code was right and the log was out of date, the case the refere
 - Step 7's resume gate sent a PR back through Step 3c only for code changes. It now does the same for a decision changed in a doc.
 - Gap fixes weren't committed before the second check, so it could read a working-tree doc the PR never carried. They are now committed first.
 
+**Round 3 (2 findings, both fixed).**
+
+- An open PR with new local commits (State A3) was pushed before Step 3c ran on them. A3 now runs Steps 3b and 3c on commits that change behaviour, structure or a documented decision, then pushes and refreshes the body.
+- When the description is the doc, naming the commit couldn't show a later edit to it. The verdict line now carries a short `sha256` of the checked sections, and the merge gate compares it.
+
+The third docs ↔ code run also caught a slip in the round-2 fix. Splitting Step 7 into bullets had tucked "tell an approving teammate what changed" inside the last bullet, so it applied to one case only. It is now its own paragraph again.
+
 Links now use the full commit SHA: `gh browse` with a short one gives a link that can become ambiguous.
 
 **The owner's rulings.** Four decisions were put to the owner: blocking when a needed doc is missing, decisions inline with links for detail, extending `review-focus` rather than writing a new skill, and leaving `nuclear-code-review` and `adversarial-review` alone. Their answer: "1 keep it, 2 ok, 3 ok, 4 ok."

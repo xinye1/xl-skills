@@ -33,7 +33,7 @@ Classify and announce the detected state in one line (e.g. "Resuming at merge fo
 |---|---|---|
 | **A. Uncommitted changes** | dirty tree (`git status --porcelain` non-empty), no open PR for current branch | Step 1 |
 | **A2. Committed, not pushed** | clean tree on a feature branch with no open PR AND ((commits-ahead-of-upstream > 0) OR (`no-upstream` AND commits-beyond-base > 0)) | Steps 3b and 3c, then Step 4 |
-| **A3. Iteration on existing PR** | dirty tree OR commits-ahead-of-upstream > 0, on a branch whose own PR is currently open | Commit any dirty work (Step 2 logic — reuse the existing branch) and/or push (Step 5 push only — PR already exists), then re-evaluate as B / B2 / B3 / B4 |
+| **A3. Iteration on existing PR** | dirty tree OR commits-ahead-of-upstream > 0, on a branch whose own PR is currently open | Commit any dirty work (Step 2 logic — reuse the existing branch). If the unpushed commits change behaviour or structure, or a decision in a doc, run Steps 3b and 3c on them first. Then push (Step 5 push only — PR already exists), refresh the body, and re-evaluate as B / B2 / B3 / B4 |
 | **B. PR open, awaiting review** | clean tree, in sync with remote, open PR, `reviewDecision` is `null` or `REVIEW_REQUIRED` | Step 4 |
 | **B2. PR open, changes requested** | clean + in sync, open PR with `reviewDecision: CHANGES_REQUESTED` | Step 4 — fix issues first, then re-review |
 | **B3. PR approved, CI not green** | clean + in sync, open PR with `reviewDecision: APPROVED`, at least one check pending or failing | Step 6 |
@@ -241,7 +241,7 @@ The body is written for the teammate who approves the PR, and for an agent revie
 - `## Verification`
 - `## Review`
 
-Put the key decisions in the body and link to the docs for the detail. Most reviewers won't open the links, and an agent gets the decisions in one read. Link to docs at the head commit (`gh browse <path> --commit=<sha> --no-browser`), never at the branch, which merging deletes. Give the repo path beside each link. The `## Verification` section reads:
+Put the key decisions in the body and link to the docs for the detail. Most reviewers won't open the links, and an agent gets the decisions in one read. Link to docs at the head commit (`gh browse <path> --commit=$(git rev-parse HEAD) --no-browser`, the full SHA), never at the branch, which merging deletes. Give the repo path beside each link. The `## Verification` section reads:
 
 ```markdown
 ## Verification
@@ -289,7 +289,9 @@ When the review verdict is `APPROVE` (Step 4) **and** all CI checks are green **
 
 - its body lacks the reviewer sections;
 - its docs ↔ code verdict is older than a change to behaviour or structure;
-- a decision in a doc the verdict covered changed after it ran, including the description's own `## Why` or `## For the reviewer` when the description is the doc. If a teammate has already approved, tell them what changed in the description, because they approved the earlier version.
+- a decision in a doc the verdict covered changed after it ran, including the description's own `## Why` or `## For the reviewer` when the description is the doc.
+
+If a teammate has already approved and the description then changes, tell them what changed, because they approved the earlier version.
 
 ```bash
 gh pr merge <pr> --merge --delete-branch
