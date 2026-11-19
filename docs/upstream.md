@@ -12,15 +12,57 @@ first, then ported there by a session working in that repository.
 
 pstack is Lauren Tan's ("poteto") skill set, MIT licensed, published in
 [github.com/cursor/plugins](https://github.com/cursor/plugins) (marketplace `cursor-plugins`, plugin
-`pstack`, Claude Code variant in `harness/pstack/claude-code/`). It is installed at user scope with
-auto-update on (see the README). Installed on 2026-11-17: version 0.15.43, commit `e1cc031`.
+`pstack`, Claude Code variant in `harness/pstack/claude-code/`). It is installed at user scope and
+pinned to a commit (see the README).
+
+**Pinned at:** `e58dd043600587dbaf58ba315e7f2b38373eeb43` (version 0.15.44), since 2026-11-19. Before: `e1cc031` (0.15.43), from 2026-11-17.
+
+### Pinned, and moved only with the owner's go-ahead
+
+The owner, 2026-11-19: "pstack should be pinned. when an update is available the user (I) should be
+prompted with "whats new" and ask if they want to run an update on the pin to get the latest.
+xl-skill should be automatically applied as I would have been full aware of the implication of any
+changes to my projects when I made them."
+
+This replaced auto-update, set on 2026-11-17 (see "How this was decided" below). Two days later
+auto-update had already moved pstack to 0.15.44 without anyone seeing the change.
+
+- **The pin** is the full commit SHA in the `ref` of the `cursor-plugins` marketplace in
+  `~/.claude/settings.json`. Claude Code checks the marketplace out at that commit. It accepts a full
+  40-character SHA there; tested on 2026-11-19. After the `ref` changes, the marketplace has to be
+  re-added from the new source (`claude plugin marketplace add cursor/plugins#<sha>`); until then
+  Claude Code ignores it and pstack fails to load. `claude plugin update` then moves the plugin to it.
+- **`skills/ship/scripts/pstack-pin.sh`** holds those steps:
+  - `check` fetches cursor/plugins into a private clone under `~/.cache/xl-skills/pstack-pin/`. It
+    reports the pstack commits since the pin, the skills changed, added or removed, which of those
+    xl-skills uses, and whether `docs/harness/claude-code.md` (how a skill is started) changed.
+  - `check --hook` runs at session start, at most once a day. It speaks only when pstack has changed.
+    It asks Claude to tell the owner what's new and ask whether to move the pin.
+  - `bump [<sha>]` moves the pin and updates or installs the plugin.
+  - `skip` silences one change until a newer one lands.
+
+  Tests: `skills/ship/scripts/test_pstack_pin.sh`, which uses a fake upstream and never touches the
+  real settings.
+- **A bump is recorded here**, in "Pinned at" above and in the refinement log, through `ship`.
+- **xl-skills itself is not pinned.** `~/.claude/skills` links to this checkout, so a merged change
+  applies at once, as the owner asked.
 
 Skills here that use it:
 
 | Skill | Uses | How |
 |---|---|---|
 | `ship` (Step 3b) | `create-verification-skill` (and `maintain-verification-skill`) | The gate drives the change with the repo's `verify-<app>` skill. Verification is a standard step: if pstack isn't installed, or the repo has no verify skill, shipping blocks and asks to set it up. |
+| `ship` (Step 3b) | `benchmark-checklist`, `principle-explain-the-number` | A PR that claims a measured number has the verifier check it. |
+| `ship` (Step 4) | `blast-radius` | Offered, consent-gated, for a small diff touching something shared. |
 | `summarise-session` | `correct` | Offered as a follow-up when the user corrected the same kind of mistake twice. |
+| `handover`, `execute-phased-plan`, `summarise-session` | `show-me-your-work` | One append-only decision log per multi-phase or unattended plan, at `~/.claude/decision-logs/<repo>/<plan-slug>.tsv`. It is audited at each phase end, and `summarise-session` reads it as evidence. |
+
+Ideas taken in xl-skills' own words, not by running the pstack skill:
+
+- `summarise-session` takes `reflect`'s three filters for skill edits. Running `reflect` itself would copy skills into `~/.claude/skills`, which is this repo.
+- `adversarial-review` takes `interrogate`'s "prove it with a run". Running `interrogate` itself needs `arena`.
+
+Why each was wired, adapted or left alone: [reports/2026-11-17-pstack-overlap.md](reports/2026-11-17-pstack-overlap.md).
 
 **How they are started.** Every pstack skill except `setup-pstack` sets `disable-model-invocation:
 true`. Tested on 2026-11-17, the Skill tool refuses: "Skill pstack:create-verification-skill cannot
@@ -31,7 +73,9 @@ reads the plugin's `docs/harness/claude-code.md` first; it maps pstack's Cursor 
 This is the route pstack's own Claude Code adapter gives.
 
 **Rule for skills here:** depend on a pstack skill's name and purpose, never on its wording or its
-section headings, and don't copy its text. It changes when the source does.
+section headings, and don't copy its text. It changes when the pin moves. The list of skills used,
+in the table above, is repeated in `pstack-pin.sh` (`DEPENDED_ON`) so its report can flag them; keep
+both in step.
 
 ### What `ship`'s gate takes from poteto (cited, not copied)
 
@@ -53,4 +97,5 @@ The user chose first to copy and adapt `correct` and `create-verification-skill`
 copies were drafted, they changed course: "i think pstack should be directly downoaded as plugins, and
 my related skills such as `ship` should reference and invoke them. this way I won't need to worry
 about updating these skills myself, instead just follow any updates from the source." The reasons
-and what was given up are in the refinement log, 2026-11-17.
+and what was given up are in the refinement log, 2026-11-17. Auto-update gave way to the pin on
+2026-11-19 (above; refinement log, 2026-11-19).
