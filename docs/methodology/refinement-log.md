@@ -19,12 +19,13 @@ Newest first. Each entry records what prompted the change, the evidence, what ch
 - New `skills/ship/references/pr-description.md`:
   - the premise and its two conditions: the docs cover the change, and the code follows the docs;
   - sizing: trivial changes skip it, and the rule says when a change needs a doc in the repo;
-  - where the docs come from, including copying decisions held only in the decision log or the chat into the repo docs;
-  - the template, with fixed headings agents can rely on: `## Why`, `## For the reviewer` (decisions ranked by cost of reversal, linked to their doc section), `## Docs`, `## Docs ↔ code`, `## Change map`, then the existing test, verification and review sections;
+  - where the docs come from, in four places: docs the branch adds or changes, docs it follows without changing, the record of a design review, and docs outside the repo. Decisions held only in the decision log or the chat are copied into the repo docs;
+  - the template, with fixed headings agents can rely on: `## Why`, `## For the reviewer` (decisions ranked by cost of reversal, linked to their doc section), `## Docs`, `## Docs ↔ code`, `## Change map`, then the existing test, verification and review sections. `## For the reviewer` caps the decisions at about seven, then lists assumptions made without asking, what's safe to skim, and where to look if the reviewer reads code. It and `## Why` fit on one screen; if they can't, the PR is doing too much and gets split;
+  - the `## Docs ↔ code` section: a verdict line (COVERED, COVERED with differences, `not run (trivial: …)`, or `skipped at the user's instruction (…)`) and three lists: where the code differs from the docs, what was done but isn't in the docs, and what the docs promise that this PR leaves for later;
   - links: at the head commit, since merging deletes the branch, with the repo path beside each for an agent;
   - the brief for the docs ↔ code check. The check runs on the default model tier (`sonnet`), or `opus` for a large diff that spans many modules. It can run alongside the Step 3b verifier.
   - Decisions are ranked by what's costliest to reverse, then by money or risk, then by behaviour users see, then by internal structure, as in `review-focus`.
-  - The docs section also links the `adversarial-review` log beside a spec. Docs outside the repo (an issue, a wiki page) are linked, and any decision the description depends on is quoted, since an agent reviewer may not be able to open them.
+  - The docs section also links the `adversarial-review` log beside a spec. Docs outside the repo (an issue, a wiki page) are linked, and any decision the PR depends on is written into a repo doc too, quoting the source: an agent reviewer may not be able to open them, and the checker is given repo paths only.
 - `ship` gains Step 3c before the first push:
   - It sizes the change and finds the docs.
   - It stops and offers to write a doc when the change needs one and has none. Only the user's explicit word skips this, and the skip is recorded.
