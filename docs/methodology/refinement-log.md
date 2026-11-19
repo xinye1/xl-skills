@@ -99,6 +99,13 @@ Links now use the full commit SHA: `gh browse` with a short one gives a link tha
 - When `review-focus` runs the check on a PR whose description is the doc, it gives the checker those sections, as `ship` does.
 - On a PR that's already open, the fixes Step 3c commits are pushed before the body is refreshed, and go back through review (and CI, where it runs).
 
+**Round 6 (4 findings, all fixed), plus one from the sixth docs ↔ code check.**
+
+- The verdict line now names the base as well as the commit. A PR retargeted to another base has a different diff on the same head. Both `ship` and `review-focus` treat a verdict with another base as stale.
+- The hash `review-focus` keeps now covers every section the guide shows, `## Docs ↔ code` included. An author could otherwise edit the listed differences after the user had read them.
+- When the premise is broken (reviewer sections or a doc missing), `review-focus` now says so to the user, offers a change request or a code review, and doesn't offer approval on the description alone. Before, it named the problem but went on to the guide anyway.
+- A trivial PR (`Docs: none needed`) has no reviewer sections by design. `ship`'s Step 7 no longer sends it back to Step 3c for them. `review-focus` checks that the diff really is trivial, then gives a short guide to the diff itself. The docs ↔ code check caught the `review-focus` half, and CodeRabbit the `ship` half.
+
 **The owner's rulings.** Four decisions were put to the owner: blocking when a needed doc is missing, decisions inline with links for detail, extending `review-focus` rather than writing a new skill, and leaving `nuclear-code-review` and `adversarial-review` alone. Their answer: "1 keep it, 2 ok, 3 ok, 4 ok."
 
 **Port due.** delivery-guardrail carries spin-offs of all three (`ship`, `grill-into-design`, `review-focus`), so each should adapt this for Concord: Azure DevOps PR links and `az repos pr` in place of `gh`. That is for a session in that repository.

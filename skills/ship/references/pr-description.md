@@ -75,7 +75,7 @@ Worth a look if you read code: <one to three files or hunks where the risk conce
 
 ## Docs ↔ code
 <COVERED | COVERED, with the differences below | not run (trivial: <reason>) |
-skipped at the user's instruction (<reason>)> at <short sha>, by a fresh agent
+skipped at the user's instruction (<reason>)> at <short sha> against <base>, by a fresh agent
 - Differs from the docs: <what, why, and the follow-up issue>, or "none"
 - Done but not in the docs: "none" (each one found was written into a doc: <which>)
 - In the docs but not in this PR: <what, and where it will happen>, or "none"
@@ -132,7 +132,7 @@ No gap goes unlisted. An unlisted gap is exactly where approving the docs stops 
 
 **Run it again once the gaps are resolved.** An updated doc or a code fix hasn't been checked yet. Commit the fixes first, so the second run checks what the PR will carry. Give the second run the same brief, and record its verdict. Two rounds is the limit. A gap still open after the second round goes to the user, rather than a third round.
 
-**The verdict covers the commit it ran on.** Run the check again before the next push and before merging in either case:
+**The verdict covers the commit it ran on, and the base it was compared with.** So the verdict line names both. A PR retargeted to another base has the same head but a different diff: run the check again. Also run it again before the next push and before merging in either case:
 
 - a later fix from review or CI changes behaviour or structure;
 - a doc it covered changes a decision. When the description is the doc, editing its `## Why` or `## For the reviewer` doesn't move the head commit, so a verdict that names the commit can't show the edit. So the verdict line also records which text was checked: `description as the doc, sections <hash>`. The hash is the first 12 characters of the `sha256sum` of the file of checked sections the checker was given. Before merging, hash the current sections the same way. If the hash differs and a decision changed, run the check again.
