@@ -68,6 +68,14 @@ In each case the code was right and the log was out of date, the case the refere
 - `gh pr review <pr> --approve | --request-changes` read like a shell pipe, and copying it would post an approval. It is now two separate commands.
 - A code fix made in Step 3c on a resumed PR, after review and CI had run, didn't go back through them. It now does.
 
+**Round 2 (3 findings, all fixed).**
+
+- When the description is the doc, editing it doesn't move the head commit, so an old verdict could pass for text the checker never saw. The verdict line now says the description was the doc, and an edit that changes a decision reruns the check.
+- Step 7's resume gate sent a PR back through Step 3c only for code changes. It now does the same for a decision changed in a doc.
+- Gap fixes weren't committed before the second check, so it could read a working-tree doc the PR never carried. They are now committed first.
+
+Links now use the full commit SHA: `gh browse` with a short one gives a link that can become ambiguous.
+
 **The owner's rulings.** Four decisions were put to the owner: blocking when a needed doc is missing, decisions inline with links for detail, extending `review-focus` rather than writing a new skill, and leaving `nuclear-code-review` and `adversarial-review` alone. Their answer: "1 keep it, 2 ok, 3 ok, 4 ok."
 
 **Port due.** delivery-guardrail carries spin-offs of all three (`ship`, `grill-into-design`, `review-focus`), so each should adapt this for Concord: Azure DevOps PR links and `az repos pr` in place of `gh`. That is for a session in that repository.

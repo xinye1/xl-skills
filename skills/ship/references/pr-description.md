@@ -101,7 +101,7 @@ Closes #<issue>
 
 ## Links
 
-- **Link to the head commit, not the branch.** Merging deletes the branch, and a link to it breaks. A link to a commit keeps working. Get one with `gh browse <path> --commit=<head-sha> --no-browser`, and add `#<heading-anchor>` to point at a section.
+- **Link to the head commit, not the branch.** Merging deletes the branch, and a link to it breaks. A link to a commit keeps working. Get one with `gh browse <path> --commit=$(git rev-parse HEAD) --no-browser`. Use the full SHA: a short one can become ambiguous as the repo grows, and add `#<heading-anchor>` to point at a section.
 - **Give the repo path too**, in backticks beside the link. An agent that has the repo checked out can open the file without a network call.
 - **Refresh the description when the docs change**, or when the docs ↔ code check runs again. Edit only your own sections. Other tools append to the body: the CodeRabbit app adds a block that starts `<!-- This is an auto-generated comment`. So read the current body (`gh pr view <pr> --json body -q .body`), replace your sections, keep the rest, and write it back with `gh pr edit <pr> --body-file <file>`.
 
@@ -130,11 +130,11 @@ It reads only and edits nothing.
 
 No gap goes unlisted. An unlisted gap is exactly where approving the docs stops meaning approving the code.
 
-**Run it again once the gaps are resolved.** An updated doc or a code fix hasn't been checked yet. Give the second run the same brief, and record its verdict. Two rounds is the limit. A gap still open after the second round goes to the user, rather than a third round.
+**Run it again once the gaps are resolved.** An updated doc or a code fix hasn't been checked yet. Commit the fixes first, so the second run checks what the PR will carry. Give the second run the same brief, and record its verdict. Two rounds is the limit. A gap still open after the second round goes to the user, rather than a third round.
 
 **The verdict covers the commit it ran on.** Run the check again before the next push and before merging in either case:
 
 - a later fix from review or CI changes behaviour or structure;
-- a doc it covered changes a decision.
+- a doc it covered changes a decision. When the description is the doc, editing its `## Why` or `## For the reviewer` doesn't move the head commit, so a verdict that names the commit can't show the edit. Say in the verdict line that the description was the doc, and run the check again whenever an edit to those sections changes a decision.
 
 Fixes to formatting, comments or tests only don't need it, and neither do doc edits that change only wording. Check with `git diff --stat <checked-sha>..HEAD`.
