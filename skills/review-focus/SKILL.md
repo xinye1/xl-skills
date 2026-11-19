@@ -1,6 +1,6 @@
 ---
 name: review-focus
-description: Use when handing the user a long document to approve — a spec, plan, ADR, research report, or review findings — and whenever they say "which bits should I focus on?", "point out the high value review points", "so I don't have to read this end to end", "the plan is too complicated for me to read", or "ELI5 the summary of a long doc under review". Trigger proactively — any artifact over ~2 screens presented for sign-off should arrive with a reviewer's guide attached, unprompted. The user is the product owner signing off on judgement calls, not a line-editor of the document.
+description: Use when handing the user a long document to approve — a spec, plan, ADR, research report, or review findings — and whenever they say "which bits should I focus on?", "point out the high value review points", "so I don't have to read this end to end", "the plan is too complicated for me to read", or "ELI5 the summary of a long doc under review". Also when the user is reviewing a teammate's pull request — "review PR #N", "help me review this PR", "what do I need to look at in this PR", "can I approve this?" — where the guide comes from the PR's description and the docs it links. Trigger proactively — any artifact over ~2 screens presented for sign-off should arrive with a reviewer's guide attached, unprompted. The user is the product owner signing off on judgement calls, not a line-editor of the document.
 ---
 
 # Review focus — a reviewer's guide for the product owner
@@ -24,6 +24,28 @@ Long documents get approved, not read. The user's sign-off is only meaningful on
 
 Expect answers in the user's compressed style ("1 yes, 2 agree, 3 ELI5") — number every point so this works. When a point gets a challenge instead of a yes, resolve it in place (this is a `grill-into-design`-style exchange in miniature), update the document, and say what changed. When all points are resolved, state plainly that the document is approved-as-amended and what happens next.
 
+## A teammate's pull request
+
+The user is the second developer, approving a PR they won't read line by line. The team's premise is that approving the docs approves the PR, as long as the code follows the docs. `ship` writes descriptions for this reader (`ship`'s `references/pr-description.md`). Your job is to check that the premise holds for this PR, then hand over the guide.
+
+1. **Read the description and the docs it links**, at the PR's head: `gh pr view <pr> --json body,headRefOid,baseRefName,files`. Then read each linked doc at that commit. Treat the description as the author's claims, not as facts.
+2. **Check the premise.** Three things can break it:
+   - **The reviewer sections are missing**, or a doc the description depends on isn't in the repo.
+   - **The docs ↔ code verdict doesn't cover the head**: commits that change behaviour or structure landed after the commit it names (`git diff --stat <checked-sha>..<head>`).
+   - **The verdict is missing.**
+
+   If it's missing or stale, run the check yourself. Use the brief in `ship`'s reference: a fresh subagent given only the diff range and the doc paths, never the description.
+3. **Give the guide**, in this skill's four parts, numbered:
+   - the decisions to weigh, from the docs, each with your view;
+   - assumptions;
+   - what's safe to skim;
+   - deep-dive pointers.
+
+   Add a fifth part, **where the code and the docs part ways**, from the check: differences the description lists, and any it doesn't. An unlisted difference is the one place the user has to read code. Point them at the file and line.
+4. **The user decides.** Draft the review the way they rule. Approval means the decisions are agreed and the differences accepted. A change request names the decision or difference it's about. Post it only when they say so (`gh pr review <pr> --approve | --request-changes --body-file <file>`).
+
+The guide stays within the PR's own decisions. Correctness bugs and structure are other reviews (`/code-review`, `nuclear-code-review`). If the user wants one, offer it. Don't fold it in.
+
 ## Anti-patterns
 
 | Anti-pattern | Why it hurts |
@@ -34,6 +56,7 @@ Expect answers in the user's compressed style ("1 yes, 2 agree, 3 ELI5") — num
 | Ranking by document order | Puts naming bikesheds ahead of the irreversible money decision. |
 | Implementation-level review points | The user explicitly doesn't review at that level; those belong to code review / subagent review. |
 | Unnumbered points | Breaks the user's "1 yes, 2 agree" reply pattern. |
+| Taking a PR description's "the code follows the docs" on trust | It's the author's claim about the commit it ran on. A stale or missing check means approving the docs no longer approves the code. |
 
 ## When NOT to use
 

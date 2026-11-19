@@ -32,7 +32,7 @@ Classify and announce the detected state in one line (e.g. "Resuming at merge fo
 | State | Signal | Entry point |
 |---|---|---|
 | **A. Uncommitted changes** | dirty tree (`git status --porcelain` non-empty), no open PR for current branch | Step 1 |
-| **A2. Committed, not pushed** | clean tree on a feature branch with no open PR AND ((commits-ahead-of-upstream > 0) OR (`no-upstream` AND commits-beyond-base > 0)) | Step 3b, then Step 4 |
+| **A2. Committed, not pushed** | clean tree on a feature branch with no open PR AND ((commits-ahead-of-upstream > 0) OR (`no-upstream` AND commits-beyond-base > 0)) | Steps 3b and 3c, then Step 4 |
 | **A3. Iteration on existing PR** | dirty tree OR commits-ahead-of-upstream > 0, on a branch whose own PR is currently open | Commit any dirty work (Step 2 logic — reuse the existing branch) and/or push (Step 5 push only — PR already exists), then re-evaluate as B / B2 / B3 / B4 |
 | **B. PR open, awaiting review** | clean tree, in sync with remote, open PR, `reviewDecision` is `null` or `REVIEW_REQUIRED` | Step 4 |
 | **B2. PR open, changes requested** | clean + in sync, open PR with `reviewDecision: CHANGES_REQUESTED` | Step 4 — fix issues first, then re-review |
@@ -163,6 +163,15 @@ A number that couldn't be checked is reported as unchecked or inconclusive, neve
 
 Put the verdict in the PR body (Step 5, `## Verification`): the verdict, the commit, the features and entry points driven, the key observations, and where the evidence is.
 
+## Step 3c: The docs the reviewer approves
+
+A teammate approves the PR. They decide from the description, not by reading all the code. So the description carries the documents written during the work: intent, design, decisions, grill answers. If the code follows those docs, approving the docs approves the PR. This step makes that true before the first push, in every CI coupling. The full rules, the description template and the check's brief are in `references/pr-description.md` (in this skill's folder). Read it before this step.
+
+1. **Size it.** A trivial change, such as a typo, a dependency bump with no change in behaviour, or a one-line fix whose commit states the cause, gets `Docs: none needed (<reason>)` and skips to Step 4. Everything else continues.
+2. **Find the docs.** These are the specs, plans, ADRs, grill records, review logs and method notes this branch adds, changes or follows. Some decisions are written down only where the reviewer can't see them: in the decision log on this machine, or only in chat. Write those into the repo docs now, as part of this PR.
+3. **A change that needs a doc and has none stops here.** That is a change with a decision a reviewer should weigh. Ask: "This PR makes decisions a reviewer should weigh (<list>), and no doc records them. Write one now from this session?" On a yes, write it in the repo's docs convention and commit it on this branch. On a no, shipping stays blocked unless the user explicitly says to ship without docs. Then the description says `Docs: skipped at the user's instruction (<reason>)`. When the whole story fits in the description, as with a bug's diagnosis or a small change's one decision, the description is the doc.
+4. **Check that the code follows the docs.** Send a fresh subagent with the diff range and the doc paths only (the brief is in the reference). Resolve every gap it finds before review is requested. Update a doc that is out of date, fix code that strays from the doc, or list a deliberate difference with its reason. No gap stays unlisted. Like the Step 3b verdict, this one covers the commit it ran on.
+
 ## Step 4: Independent code review
 
 Review is **mandatory before every merge** — ship never merges code that hasn't been independently reviewed. What changes is only *when* review runs relative to the push, and that's set by one repo fact: **does CI run on push, or only at a merge gate?** Determine it once, from the workflow triggers:
@@ -221,30 +230,38 @@ When this runs, and whether the PR is a draft, follows the CI coupling from Step
 - **Push-coupled CI:** review already happened pre-push (Step 4), so create the PR normally — this first push is the only CI trigger as long as you don't iterate post-push.
 - **No CI:** create normally; nothing is triggered either way.
 
-```bash
-git push -u origin <branch>
-gh pr create [--draft] --base <base> --title "..." --body "$(cat <<'EOF'
-## Summary
-- <bullet of the main change>
-- <bullet of secondary change if any>
+The body is written for the teammate who approves the PR, and for an agent reviewing it. Build it from the template in `references/pr-description.md`, with these headings in this order:
 
-## Test plan
-- [ ] <verification step>
-- [ ] <verification step>
+- `## Why`
+- `## For the reviewer`: the decisions to weigh, ranked, each linked to its doc section
+- `## Docs`
+- `## Docs ↔ code`: Step 3c's verdict
+- `## Change map`
+- `## Test plan`
+- `## Verification`
+- `## Review`
 
+Put the key decisions in the body and link to the docs for the detail. Most reviewers won't open the links, and an agent gets the decisions in one read. Link to docs at the head commit (`gh browse <path> --commit=<sha> --no-browser`), never at the branch, which merging deletes. Give the repo path beside each link. The `## Verification` section reads:
+
+```markdown
 ## Verification
 <PASS | PASS+NOTES | INCOMPLETE | FAIL | not applicable (reason) | skipped at the user's instruction (reason)> at <sha>, by a fresh verifier (Step 3b)
 - <feature / entry point driven>: <what was observed>
 - Evidence: <where it is>
-
-Closes #<issue>
-EOF
-)"
 ```
+
+Write the body to a file, then create the PR:
+
+```bash
+git push -u origin <branch>
+gh pr create [--draft] --base <base> --title "..." --body-file <body-file>
+```
+
+When a later push changes the docs, or a check runs again, refresh your sections of the body. Keep the blocks other tools append, such as CodeRabbit's summary (the reference says how).
 
 The `Closes #<n>` footer is REQUIRED whenever the work has a tracking issue — the merge event is what closes delivered-work issues (never an out-of-band `gh issue close`). One line per issue this PR delivers, and when the PR completes a feature, also `Closes #<feature-parent>` — GitHub sub-issues don't auto-close the parent. Omit the footer only when no issue exists.
 
-If the repo has `.github/pull_request_template.md`, gh applies it automatically — keep the body aligned with its section headers rather than overriding.
+If the repo has `.github/pull_request_template.md`, fit the sections above into its headings rather than overriding it (with `--body-file`, gh doesn't apply the template for you).
 
 Stash the PR number for Steps 6–8.
 
@@ -268,7 +285,7 @@ On failure: inspect logs (`gh run view --log-failed` for the failing run), fix t
 
 ## Step 7: Merge
 
-When the review verdict is `APPROVE` (Step 4) **and** all CI checks are green **and** the PR carries a Step 3b verdict of `PASS` or `PASS+NOTES` that covers its head (or a reasoned `not applicable`, or `skipped at the user's instruction`). A PR resumed from Step 0 (States A2, B to B4) with no verdict in its body, or one older than a behavior-bearing change, goes through Step 3b first.
+When the review verdict is `APPROVE` (Step 4) **and** all CI checks are green **and** the PR carries a Step 3b verdict of `PASS` or `PASS+NOTES` that covers its head (or a reasoned `not applicable`, or `skipped at the user's instruction`) **and** a Step 3c docs ↔ code verdict that covers its head, with every gap listed (or `not run (trivial: …)`, or `skipped at the user's instruction`). A PR resumed from Step 0 (States A2, B to B4) with no verdict in its body, or one older than a behavior-bearing change, goes through Step 3b first. A PR whose body lacks the reviewer sections, or whose docs ↔ code verdict is older than a change to behaviour or structure, goes through Step 3c first, and gets its body refreshed. If a teammate has already approved, tell them what changed in the description, because they approved the earlier version.
 
 ```bash
 gh pr merge <pr> --merge --delete-branch
@@ -302,9 +319,9 @@ If the worktree has uncommitted changes for some reason, this will refuse — in
 
 Report a one-table summary of everything shipped this invocation:
 
-| Branch | PR | Verify | CI | Review | Merge | Local cleanup |
-|---|---|---|---|---|---|---|
-| fix/foo | #42 | PASS | ✓ | APPROVE | merged | branch+worktree removed |
+| Branch | PR | Verify | Docs ↔ code | CI | Review | Merge | Local cleanup |
+|---|---|---|---|---|---|---|---|
+| fix/foo | #42 | PASS | COVERED | ✓ | APPROVE | merged | branch+worktree removed |
 
 ## Rules
 
@@ -325,3 +342,10 @@ Report a one-table summary of everything shipped this invocation:
 | `verification-before-completion` | Step 3 (local tests + lint before push), Step 3b (a fresh verifier drives the change in the real app, with the repo's `verify-<app>` skill, generated by pstack's `create-verification-skill`, when it has one), Step 6 (CI green before merge), Step 8 (safe-delete refusal treated as a real signal, not friction). |
 
 These skills are complementary, not redundant: superpowers covers the local dev loop and the "implementation complete, what next" decision point; ship covers everything downstream of that — the remote PR lifecycle and the loop-closing local cleanup.
+
+The PR description (Steps 3c and 5) draws on, and is read through, these xl-skills skills:
+
+- `grill-into-design` writes the spec's intent and grill record, which the description lifts.
+- `adversarial-review` leaves a review log beside the spec, which the description links.
+- `handover` and `execute-phased-plan` keep the decision log, whose reviewer-relevant rows Step 3c copies into the repo docs.
+- On the reviewer's side, `review-focus` reads the PR: it turns the description into a numbered guide, and checks its docs ↔ code verdict still covers the head.

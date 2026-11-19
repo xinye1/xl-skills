@@ -93,6 +93,8 @@ Best (recommended answer + sub-decisions surfaced):
 
 **`[needs-prototype]` escape hatch.** When a question is genuinely high-fidelity — the right answer depends on seeing the UI, or running a small smoke test, or measuring something — mark it `[needs-prototype]`, move on, and resolve after a smoke implementation. Don't endlessly grind on a question that can't be answered without code.
 
+**Record each answer as it lands.** Each resolved question goes into the spec draft's grill record (Step 8) as it's answered, not afterwards from memory. The grill record is what the PR reviewer reads in place of this conversation. And a compaction or handover mid-grill loses whatever only the chat held.
+
 **Stop condition.** The grill ends when shared understanding is reached, not when documentation is complete. Pocock's median is 40-100 questions per session; 16-50 is also common. If you find yourself proposing 20 sub-questions about a topic that the user clearly doesn't care about at this depth, you've over-grilled — stop and ship the spec.
 
 ### Step 5: Token-budget check (~120K, or ~40 turns)
@@ -120,6 +122,12 @@ Ask after each section whether it looks right so far. If the user pushes back on
 ### Step 8: Write the spec doc
 
 Output: a single Markdown file at `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md` (or whatever the project convention is — see Step 1). The file should be self-contained: a reader who has read the project's `CLAUDE.md` and the cited specs should be able to read this and understand the design without re-running the grill.
+
+**Write it for the PR reviewer as well as the implementer.** A teammate will approve the PR that builds this, and they'll do it by reading this spec rather than the code (`ship`'s `references/pr-description.md`). So, whatever the project's structure, the spec carries three things:
+
+- **Intent, first.** Two to five sentences before any design: the problem, who has it, what changes for them, and what is deliberately not in scope. The PR's `## Why` is taken from here.
+- **Grill record.** One line per question that shaped the design: the question, the answer adopted, and why. Where the user overrode your recommended answer, say so and quote their reason. That is exactly what a reviewer can't infer from the code. Questions that settled nothing go in the bin, not the record.
+- **Changes during implementation.** Start this section empty. When the build departs from the spec, the change is written here, in this spec, so the doc the reviewer approves matches the code that merges. Whoever builds it writes it, and `ship`'s docs ↔ code check catches what was missed.
 
 Match the project's existing spec depth and structure. If the project anchors on a reference spec (e.g. "Spec 7a depth standard"), follow it: top-level §0 background, numbered sections, Honest Caveats section at the end, cross-references to upstream specs.
 
@@ -241,6 +249,7 @@ Per Pocock: this is the single biggest preventive measure against agent-drift ac
 | Writing the spec after compacting context | Spec quality degrades with context loss. Always: spec first, compact second. |
 | Endless grilling without ever spec-ing | *"If you're just planning and planning without building, you're over-grilling"* (Pocock). Once the major decisions are made, ship the spec. |
 | Outputting a chat-transcript summary instead of a spec doc | The chat is throwaway; the spec is durable. The user can't grep a chat. Write to the file. |
+| A spec with decisions but no grill record | The PR reviewer sees what was chosen but not what was asked, or where the user overrode the recommendation. Those are the calls they're approving. |
 
 ## Composition with other skills
 
@@ -252,7 +261,7 @@ Per Pocock: this is the single biggest preventive measure against agent-drift ac
 | `superpowers:test-driven-development` | Downstream of writing-plans — the implementation skill enforces TDD on each task. This skill's spec should specify the audit surface so TDD knows what "done" means. |
 | `handover` | Invoked at Step 5 when token budget is near ~120K and the design isn't complete. Pause, write what you have, hand off to a fresh chat. |
 | `claude-md-improver` | Adjacent — if the grill surfaces a missing project convention, that's a signal to update `CLAUDE.md`, not to handle it in the spec. |
-| `ship` | Downstream of the implementation plan. Not this skill's concern, but the spec → plan → ship chain is the full lifecycle. |
+| `ship` | Downstream of the implementation plan. Its PR description takes the spec's intent and grill record as the decisions the reviewer approves, and checks that the code follows the spec. |
 
 ## When NOT to use this skill
 

@@ -2,6 +2,52 @@
 
 Newest first. Each entry records what prompted the change, the evidence, what changed, what was considered and rejected, and what the pass caught along the way.
 
+## 2026-11-19 — the PR description is written for a reviewer who approves the docs, not the code
+
+**Trigger.** The user, who runs a team doing agentic delivery, described how PR review works there. One developer raises a PR and another approves it. The second "is impossible … to read all the code, so they are expected to understand enough to make decisions on approval or suggesting changes." So the PR body should carry, inline or by link, the docs written during the work: "the feature description, design, intent, decisions, answer to grilling questions". Their premise: "Assuming that the code changes have been done relatively faithfully based on the documentation, approving the documentation … should imply approval of the PR itself." A second reader is an agent reviewing the PR as a whole.
+
+**What the skills did before.**
+
+- `ship` Step 5's body had `## Summary`, which listed what changed, and nothing on why or what was decided. PR #50's body is typical: a good change log, but a reviewer couldn't tell which calls they were being asked to approve.
+- Three places where docs failed to reach the reviewer:
+  - `grill-into-design` kept the grill answers only in the chat. The spec recorded decisions, but not what was asked, or where the user overrode the recommended answer.
+  - The `show-me-your-work` decision log lives on the author's machine (`~/.claude/decision-logs/`), so the reviewer can never open it.
+  - Nothing checked the premise. No step compared the code with the docs, so "approve the docs" never actually covered the code.
+
+**What changed.**
+
+- New `skills/ship/references/pr-description.md`:
+  - the premise and its two conditions: the docs cover the change, and the code follows the docs;
+  - sizing: trivial changes skip it, and the rule says when a change needs a doc in the repo;
+  - where the docs come from, including copying decisions held only in the decision log or the chat into the repo docs;
+  - the template, with fixed headings agents can rely on: `## Why`, `## For the reviewer` (decisions ranked by cost of reversal, linked to their doc section), `## Docs`, `## Docs ↔ code`, `## Change map`, then the existing test, verification and review sections;
+  - links: at the head commit, since merging deletes the branch, with the repo path beside each for an agent;
+  - the brief for the docs ↔ code check.
+- `ship` gains Step 3c before the first push:
+  - It sizes the change and finds the docs.
+  - It stops and offers to write a doc when the change needs one and has none. Only the user's explicit word skips this, and the skip is recorded.
+  - It sends a fresh subagent with the diff range and the doc paths only, never a summary. The subagent reports decisions not implemented as written, and changes the docs don't cover.
+  - Every gap is resolved before review is requested: update a stale doc, fix the code, or list the difference. The verdict covers the commit it ran on, like Step 3b's.
+- `ship` Step 5 builds the body from the template through `--body-file`. When it refreshes the body later, it keeps blocks other tools append (CodeRabbit's summary).
+- `ship` Step 7 needs a docs ↔ code verdict that covers the head. If the body changes after a teammate approved, they are told what changed. The summary table gains a column, and State A2 enters through 3b and 3c.
+- `grill-into-design` records each answer in the spec as it lands. The spec leads with a short intent, keeps a grill record (quoting the user where they overrode the recommendation), and has a "Changes during implementation" section, which the docs ↔ code check feeds.
+- `review-focus` covers the reviewer's side. Asked to review a teammate's PR, it:
+  - treats the description as the author's claims;
+  - checks that the docs ↔ code verdict covers the head, and runs the check itself if not;
+  - gives the usual numbered guide, plus where the code and the docs part ways;
+  - posts the review only on the user's word.
+
+**Considered and rejected.**
+
+- *Links only, or key messages only.* The user offered either or both. Links alone: most reviewers won't click, and an agent pays a fetch per doc. Key messages alone: the description gets long, and the detail isn't kept with the code. Both, split by purpose: the decisions go in the body, and the detail stays in the linked docs.
+- *Letting the PR body be the record.* A body is edited and replaced, and isn't kept with the code. Decisions are written into the repo docs, and the body points at them.
+- *Folding the docs ↔ code check into the Step 3b verifier.* They check different things (running the app, and comparing text with code), and one brief doing both would do each worse. They run side by side instead.
+- *Giving the checker the draft description.* That is the author's framing. A checker told the intent in other words confirms it. It gets the docs and the diff, as `adversarial-review` and `nuclear-code-review` get only committed context.
+- *A new reviewer-side skill.* `review-focus` already produces exactly this guide for documents someone signs off. A PR is that document plus a check, so it was extended instead. It can be split out if the PR part grows.
+- *Changing `nuclear-code-review` or `adversarial-review`.* Both already treat committed docs as context they may question, and neither should read a PR body, which is author framing.
+
+**Port due.** delivery-guardrail carries spin-offs of all three (`ship`, `grill-into-design`, `review-focus`), so each should adapt this for Concord: Azure DevOps PR links and `az repos pr` in place of `gh`. That is for a session in that repository.
+
 ## 2026-11-19 — pstack is pinned; a new session says what's new and asks before moving the pin
 
 **Trigger.** The delivery-guardrail session relayed a ruling from its owner: "pinned ref, bumped by PR. the same should be for xl-skills." That contradicted what the owner had told this session directly two days earlier ("just follow any updates from the source"), so nothing was changed on the relayed ruling; it was put to the owner here. Their answer: "pstack should be pinned. when an update is available the user (I) should be prompted with "whats new" and ask if they want to run an update on the pin to get the latest. xl-skill should be automatically applied as I would have been full aware of the implication of any changes to my projects when I made them."
