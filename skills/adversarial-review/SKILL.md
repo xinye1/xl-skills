@@ -84,7 +84,11 @@ Contest, at minimum:
 - Internal contradictions (sections that cannot both be true)
 - Unstated assumptions that break under a plausible condition
 - Claims about existing code/system behaviour — verify each against the
-  actual code; cite file:line where the artifact is wrong
+  actual code; cite file:line where the artifact is wrong. Where a
+  read-only command can show it (a search, running an existing test, a
+  query, calling the library the plan relies on), run it and paste the
+  command and its output next to the finding, and mark the findings that
+  rest on reading alone
 - Missing failure modes, edge cases, and rollback/migration paths
 - Feasibility: steps that look atomic but hide multi-day work, ordering
   that deadlocks, dependencies the plan doesn't own

@@ -2,6 +2,120 @@
 
 Newest first. Each entry records what prompted the change, the evidence, what changed, what was considered and rejected, and what the pass caught along the way.
 
+## 2026-11-19 — pstack is pinned; a new session says what's new and asks before moving the pin
+
+**Trigger.** The delivery-guardrail session relayed a ruling from its owner: "pinned ref, bumped by PR. the same should be for xl-skills." That contradicted what the owner had told this session directly two days earlier ("just follow any updates from the source"), so nothing was changed on the relayed ruling; it was put to the owner here. Their answer: "pstack should be pinned. when an update is available the user (I) should be prompted with "whats new" and ask if they want to run an update on the pin to get the latest. xl-skill should be automatically applied as I would have been full aware of the implication of any changes to my projects when I made them."
+
+**Evidence that auto-update was the wrong default.** By 2026-11-19, auto-update had already moved pstack from 0.15.43 (`e1cc031`, the version PR #49 was written against) to 0.15.44 (`e58dd04`). No one had read the change. It happened to be harmless: it changed setup-pstack's default model for a reviewer seat, plus one line of the Claude Code harness doc. But the next such change could have been to `create-verification-skill`, which `ship`'s gate runs.
+
+**How the pin works (each step tested on this machine, 2026-11-19).**
+
+- Claude Code's settings schema says a marketplace `ref` may be a full 40-character commit SHA. It was set on the `cursor-plugins` entry, with `autoUpdate` removed.
+- Changing the `ref` alone broke pstack. `claude plugin list --json` showed: "Marketplace cursor-plugins is added but ignored. Its source doesn't match its extraKnownMarketplaces entry …", and pstack failed to load. `claude plugin marketplace add cursor/plugins#<sha>` re-cloned the marketplace at the pin ("Cloning repository … (ref: e1cc031…)"). `claude plugin update pstack@cursor-plugins` then moved the plugin back from 0.15.44 to 0.15.43, which loads without errors.
+- Those steps are now one command, `pstack-pin.sh bump`, so a bump can't stop halfway.
+
+**What changed.**
+
+- New `skills/ship/scripts/pstack-pin.sh` (`check`, `check --hook`, `bump`, `skip`), with `test_pstack_pin.sh`: 45 checks against a fake upstream and a fake `claude`, all passing.
+  - The "what's new" report lists:
+    - the pstack commits since the pin;
+    - the skills changed, added or removed, flagging those xl-skills uses;
+    - whether the harness doc changed;
+    - a compare link.
+  - Run against the real upstream, it took 2.5 s and found the 0.15.44 change.
+- A `SessionStart` hook (matcher `startup|clear`, so a chat begun with `/clear` and `/pickup` counts) runs `check --hook`, at most once a day. It speaks only when pstack has moved: a one-line notice for the owner, and context asking Claude to explain what's new and ask whether to move the pin. Added to `~/.claude/settings.json` on this machine; the README gives the entry.
+- `ship` Step 3b's set-up check installs pstack at the recorded pin through `bump` (not `autoUpdate`), and offers the hook if it's missing.
+- `docs/upstream.md` records the pin ("Pinned at"), the ruling, and how the pin works; the README install section matches.
+- xl-skills itself stays unpinned. `~/.claude/skills` links to this checkout, so a merged change applies at once, as the owner asked.
+
+**What review caught (CodeRabbit CLI, before the push: 3 findings, all fixed, each with a test).**
+
+- A failed `marketplace add` or plugin update left the new pin in settings. The settings then pointed at a commit that wasn't registered (the state that stops pstack loading), and a later `check` would say "up to date". `bump` now restores the settings and re-registers the old source, and says so plainly if that fails too.
+- `bump` failed on a machine with no `~/.claude/settings.json`, which is the fresh-install case `ship` uses it for. It now starts from an empty file, while malformed JSON still fails.
+- The hook's `skip` read the latest change when it ran, not the one the owner was shown. A fetch between the two could silence a newer change unseen. The hook now writes the shown commit into the `skip` command.
+
+**Second review (8 findings: 7 fixed, 1 not applicable).**
+
+- *A plugin update can be a no-op.* Claude Code keeps the cached files when the version string hasn't changed. So `bump` now checks the commit Claude Code recorded (`gitCommitSha` in `installed_plugins.json`) and the installed `skills/`, `docs/` and `agents/` against that commit. On this machine, before the change, the installed files matched the pin exactly, apart from Claude Code's `.in_use` marker. On a mismatch it reinstalls, and if they still don't match, it rolls back.
+- *A pin held as a branch or tag was rolled back to the default branch.* The rollback now re-registers whatever `ref` was there before.
+- *Two bumps at once could undo each other.* `bump` holds a machine-wide lock from reading the old state to the end. It is a `mkdir` lock, because `flock` isn't on macOS.
+- *The settings file could become world-readable.* The rewrite created a 0644 file even when settings were 0600, and settings can hold credentials in `env`. The temporary file is now created 0600, and the file's own mode is kept.
+- *The hook's time limit didn't cover everything.* A blob-less clone fetches file contents on demand, outside the time limit. The private clone is now a full one (about 10 MB), so the report never touches the network.
+- *`timeout` isn't on stock macOS, which the README supports.* The script falls back to `gtimeout`, or runs without a limit.
+- *An install from before the pin (auto-update, no `ref`) passed `ship`'s "is pstack installed" check and stayed unpinned.* `ship` now asks to pin it.
+- *Not applicable:* "docs/upstream.md has no Pinned at entry". The reviewer read GitHub's `main`, not the working tree, which has it.
+
+**Third review (7 findings: 6 fixed, 1 not applicable, the same "Pinned at" one).**
+
+- A rollback with no previous entry ran `marketplace remove` without `--scope`, which removes the marketplace from every scope, project scope included. It now passes `--scope user`.
+- An update that changed the plugin and then failed was left installed. The rollback now reinstalls from the old pin whenever the installed commit isn't the one before the bump.
+- Two sessions making the first clone at once shared a `.part` folder. Each now clones into its own temporary folder, and the first rename into place wins.
+- The lock now works without `flock`. The test's permission check uses Python, not GNU `stat -c`.
+- Writing the lock exposed a bug of its own. The `EXIT` trap named a `local` variable, which was gone by the time the trap ran, so the lock was never released and the next bump waited ten minutes. The tests hung, which is how it was found. The trap now expands the path when it is set.
+
+**Fourth review (3 findings, all fixed).**
+
+- `plugin update` picks the most specific installed scope by default. It now passes `--scope user`, like the other plugin commands.
+- Git's rename detection would report a renamed skill only under its new name. A dependency renamed upstream would then not show as removed. The report's diffs now use `--no-renames`.
+- An update could fail after changing the files but before changing the recorded commit. The rollback now also compares the files with the old pin.
+
+**Final review, of the commit (1 finding, fixed).** The hook matched only `startup`. A fresh chat begun with `/clear` (how `handover` and `pickup` work) sends `clear`, so a long-lived Claude Code could go days without a check. The matcher is now `startup|clear`. The daily throttle keeps that to one notice. `resume` and `compact` are left out because they continue work already in progress.
+
+**Re-review of the commit (5 findings, all fixed).**
+
+- The rollback copied the whole settings file back. That would discard anything another session changed in the meantime, such as the model or another plugin. `bump` now saves only the `cursor-plugins` entry, and puts back only that entry.
+- That entry is saved before settings change, and a failed save stops the bump. Before, a failed backup copy didn't stop it.
+- The lock's `EXIT` trap quoted a path into shell code, which a `'` in the path would break. It now reads a global variable.
+- A rollback compared the files with the old pin only when the old ref was a SHA. It now compares them with the commit that was installed, whatever the ref.
+- A first install that registered and then failed was left installed. The rollback now uninstalls it.
+
+**First bump, 0.15.43 → 0.15.44.** `check` reported one upstream change. It set Gemini 4 Neon as setup-pstack's default model for one reviewer seat, and updated the matching line in `docs/harness/claude-code.md`. None of the skills xl-skills uses changed. The owner approved ("yes"), and `pstack-pin.sh bump e58dd04…` ran on this machine:
+- it re-added the marketplace at that commit;
+- the plugin updated 0.15.43 → 0.15.44;
+- the recorded commit and the installed files matched the pin;
+- `~/.claude/settings.json` kept its mode.
+
+"Pinned at" in `docs/upstream.md` now records it.
+
+**Considered and rejected.**
+
+- *Bump only through a PR, as the kit does.* The pin that takes effect is in user settings, which no repo holds. So the owner's yes runs `bump` at once, and the record in `docs/upstream.md` follows through `ship`.
+- *Pinning by leaving `autoUpdate` off without a `ref`.* That freezes this machine. But a fresh install would get upstream main rather than the reviewed commit, and nothing would ever say an update exists.
+- *Checking at every session start without a throttle, or in `ship` only.* The first adds a network call to every start. The second raises updates only when shipping, which may be days after they land.
+- *Fetching into Claude Code's own marketplace clone.* That clone belongs to Claude Code, which re-clones it on `marketplace add`. The check keeps its own blob-less clone in `~/.cache/xl-skills/pstack-pin/`.
+
+## 2026-11-17 — wiring in the rest of pstack where it fills a gap
+
+**Trigger.** After PR #49, the user: "for similar skills (I assume e.g. show-me-your-work is similar to summarise-session?) then analyse pros and cons of each, plug any gaps with my own skills if beneficial, then wire in the new skills. don't blindly do so to confuse me and you when skills are invoked and/or abandon any skills that are currently working well."
+
+**How it was judged.** Each candidate from the survey was read in full, in the installed pstack 0.15.43, beside the xl-skills skill it resembles. The pros, cons and verdicts are in [the report](../reports/2026-11-17-pstack-overlap.md). The rule that keeps invocation clear: no pstack skill gets a trigger of its own. Each one starts only from a named moment inside an xl-skills skill, or when the user types it, so a request never has two skills competing for it.
+
+**On the user's guess.** `show-me-your-work` is not like `summarise-session`. It is a log kept *during* the work, while `summarise-session` is a retrospective written *after*. So the log was wired in to feed the retrospective, and nothing replaces it.
+
+**What changed.**
+
+- `handover` asks for a decision-log path for multi-phase or unattended plans (`~/.claude/decision-logs/<repo>/<plan-slug>.tsv`, outside the repo and `/tmp`). Both templates carry it. Each phase end audits the log before `summarise-session`. The from-disk check fails on an unfilled `<plan-slug>`.
+- Both execution models (inlined into every handover): the orchestrator appends rows at decision points, in `show-me-your-work`'s format.
+- `execute-phased-plan`: one log across a plan's phases. For a run the user won't watch, `show-me-your-work`'s end-of-run review runs on a different Claude tier from the orchestrator's (its "another vendor's model" has no Claude Code equivalent).
+- `summarise-session` reads the log first for decisions. It also gains a "skill edit" candidate with `reflect`'s three filters, routed by owner: an xl-skills skill goes on a branch and through `ship`; a plugin skill is never edited and is named as an upstream issue; a rule a check could enforce goes to `correct`.
+- `ship` Step 3b: a claimed measured number goes through `benchmark-checklist` or `principle-explain-the-number`. Step 4: an optional `blast-radius` offer for small diffs that touch something shared.
+- `adversarial-review`: a finding a read-only command can show carries the command and its output (from `interrogate`).
+
+**What review caught (CodeRabbit CLI, before the push: 4 findings, all fixed).**
+
+- The report still said the decision log "must sit in a git-ignored folder". That is the PR #49 mistake again, in prose this time. It now says the log lives outside the repo.
+- The number check sat inside the behavior gate, so a docs-only PR claiming a speedup skipped it. It now runs whenever a PR claims a measured number.
+- "Faster or slower, with a limiter" doesn't fit a standalone eval score. A comparison and a standalone measurement now report different fields.
+- A handover could name a decision log on a machine without pstack. The execution models now give the six columns as a fallback.
+
+**Considered and rejected.**
+
+- *Running `reflect` as written.* It copies the skill it edits into `~/.claude/skills`, which is this repo through the symlink. For a pstack skill, that is the copying the user ruled out on 2026-11-17, so its filters were taken instead.
+- *Wiring `ketchup` into `status-report`.* Two skills would answer "where are we". `status-report` and `elii` already lead with the delta and the decision brief.
+- *Running `interrogate`.* It is built on `arena` (several models and worktrees), and it would compete with `adversarial-review` for plans.
+- *An untracked `decisions.tsv` in the work dir* (`show-me-your-work`'s default). Removing the worktree deletes it, the same lesson CodeRabbit taught on PR #49's evidence folder.
+- *Wiring `sharpen`.* It is a prompt tool the user types, with no natural moment inside another skill.
+
 ## 2026-11-17 — poteto's pstack as a plugin; ship gains a verification gate
 
 **Trigger.** The user: "there's a set of new skills we need to add, one around improving baseline linting and one about verification, following poteto's … advice." Their first answers were to copy and adapt pstack's `correct` and `create-verification-skill` ("Copy and adapt (Recommended)", "Both, one skill (Recommended)", "Generator + ship gate (Recommended)").

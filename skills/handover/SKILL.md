@@ -28,12 +28,13 @@ Figure out which shape applies before writing anything. If you're unsure, ask th
 
 ## Step 1: Confirm the handover's inputs
 
-Before drafting, lock down these four things — ask the user in one message if anything is unclear, don't guess:
+Before drafting, lock down these five things — ask the user in one message if anything is unclear, don't guess:
 
 1. **Plan file path** (absolute). The handover points at it verbatim; the next chat reads it directly.
 2. **Current phase number + title** and whether it's complete or in-progress.
 3. **What's been done since the last handover** — tasks completed, PRs merged, tests run. If the user lost track, check `git log` on the current branch and `gh pr list --state merged --limit 5` rather than making them recite it.
 4. **Branch + base branch** the next chat should work on (usually the plan says, but confirm).
+5. **Decision log**, for a multi-phase plan or a run the user won't watch (they're away, or it runs overnight): one append-only log per plan, at `~/.claude/decision-logs/<repo>/<plan-slug>.tsv`. It lives outside the repo, so removing a worktree doesn't delete it, and outside `/tmp`, which is RAM-backed on WSL. The format is pstack's `show-me-your-work`. Create the log on the plan's first handover, then carry the same path forward. pstack should be installed (`ship` asks to install it). If it isn't, the execution models give the columns to use without it. The handover names the log rather than restating every decision in it. For short single-phase work, write "none".
 
 If the user triggered this skill casually ("handover please"), these don't all need explicit answers — pull what you can from the transcript and git state, and only ask about gaps.
 
@@ -152,6 +153,8 @@ Do not begin decomposition or dispatch until the user has switched or explicitly
 - `<type-check command>` — clean
 - UAT: <link + sections ticked, or "N/A">
 
+**Decision log:** `<~/.claude/decision-logs/<repo>/<plan-slug>.tsv>` (append to it as the execution model says) — or "none"
+
 ## Plan reference
 
 Full plan: `<absolute path to plan file>`
@@ -204,6 +207,7 @@ Phase-specific plan (if one exists): `<path>`
 Before handing over to the next phase, in this order:
 
 1. Verify exit criteria (tests green, PR merged, UAT ticked).
+   If there is a decision log, audit this chat's rows against what actually happened (`show-me-your-work`'s audit). Correct the log by appending rows; never edit a row.
 2. Run `summarise-session` for the reflective pass — surface gotchas, deviations, subagent/orchestration findings, and any follow-ups (issues to file, memories to save) for the user to action. This is what decides what the phase memory should persist.
 3. Write a phase memory entry to `<project-memory-dir>/phase_<target-phase>_<short-title>.md` — outcome, key decisions, deviations, carry-forwards. Add a pointer line to `MEMORY.md`.
 4. Produce the next handover prompt using the `handover` skill.
@@ -237,6 +241,7 @@ Goals, reasoning, and constraints — no numbered procedure. The "why" in the Go
 - **In-progress (mid-phase only, else omit):** done — <tasks>; outstanding — <tasks>; branch `<branch>` (unmerged)
 - **Verification evidence:** `<test command>` — `X/Y passing`; `<lint>` — clean; `<types>` — clean; UAT: <link or "N/A">
 - **Deviations from plan so far:** <deviation + reason, or "none">
+- **Decision log:** `<~/.claude/decision-logs/<repo>/<plan-slug>.tsv>` (append to it as "How you work" says), or "none"
 - **Environment / secrets:** `<ENV_VAR>` — <how to obtain; reference the store, never inline>
 
 ## Constraints
@@ -253,7 +258,7 @@ Goals, reasoning, and constraints — no numbered procedure. The "why" in the Go
 
 ## At phase end
 
-Once every box in **Done means** is ticked: run `summarise-session` (the reflective pass that decides what to persist), write a phase memory entry to `<project-memory-dir>/phase_<target-phase>_<short-title>.md` with a pointer line in `MEMORY.md`, then produce the next handover with the `handover` skill.
+Once every box in **Done means** is ticked: if there is a decision log, audit this chat's rows against what actually happened (`show-me-your-work`'s audit; correct it by appending rows). Then run `summarise-session` (the reflective pass that decides what to persist), write a phase memory entry to `<project-memory-dir>/phase_<target-phase>_<short-title>.md` with a pointer line in `MEMORY.md`, then produce the next handover with the `handover` skill.
 ~~~
 
 ## Step 5: Save, verify, hand off
@@ -291,7 +296,7 @@ f="<absolute path>"; d=$(dirname "$f")
 test -s "$f" && echo "saved: $(wc -l <"$f") lines" || echo "FAIL: missing or empty"
 grep -q '^# Handover — ' "$f" && echo "ok: title" || echo "FAIL: no '# Handover —' title"
 grep -qE 'Default: every task in this phase is delegated|Constraints and intent, not a procedure' "$f" && echo "ok: execution model inlined" || echo "FAIL: execution model missing"
-grep -qE 'REQUIRED SLOT|<recommended orchestrator model>|<recommended effort>' "$f" && echo "FAIL: unfilled slot or placeholder" || echo "ok: no unfilled placeholders"
+grep -qE 'REQUIRED SLOT|<recommended orchestrator model>|<recommended effort>|<plan-slug>' "$f" && echo "FAIL: unfilled slot or placeholder" || echo "ok: no unfilled placeholders"
 tail -n 3 "$f" | grep -q 'handover` skill' && echo "ok: complete to the end" || echo "FAIL: file looks cut off (closing section missing)"
 echo "waiting in $(basename "$d"): $(ls "$d"/*.md 2>/dev/null | wc -l)"
 ```

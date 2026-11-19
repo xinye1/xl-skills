@@ -46,6 +46,7 @@ Unless the user chose **Manual** mode in Step 0 (they drive, you assist inline �
 Two additions when running it from this skill:
 
 - Include the repo's dev-loop conventions from `CLAUDE.md` in every subagent prompt (conventional commits, branch off base, PR → base). Merging and cleanup at phase end belong to the `ship` skill.
+- A multi-phase plan keeps one decision log across its phases. Its path is set at the first handover (`handover` Step 1), and its rows are appended as the execution model says. A run the user won't watch also gets the end-of-run review from `show-me-your-work`: a fresh subagent reads the log and this chat's transcript, and flags what the user should look at. It runs on a different Claude tier from the orchestrator's, since Claude Code has no other vendor's model. Its findings go to the user under "Attention".
 - While executing, keep three things close to hand:
   - **Exit criteria** for this phase from the plan (tests passing, PR merged, UAT green, whatever the plan states).
   - **Deviations from plan** — aggregate deviations reported by subagents, plus any discovered during overall validation. These go into the handover.

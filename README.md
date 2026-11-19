@@ -64,14 +64,24 @@ Packaged `.skill` files land in `dist/` (gitignored).
 
 ## Plugins these skills use
 
-**pstack** (poteto's skills, MIT © 2026 Lauren Tan, from [cursor/plugins](https://github.com/cursor/plugins/tree/main/pstack)) is installed as a plugin, not copied, so it updates from the source:
+**pstack** (poteto's skills, MIT © 2026 Lauren Tan, from [cursor/plugins](https://github.com/cursor/plugins/tree/main/pstack)) is installed as a plugin, not copied, and pinned to a commit. It moves only when you say so. Install it at the commit under "Pinned at" in [docs/upstream.md](docs/upstream.md):
 
 ```bash
-claude plugin marketplace add cursor/plugins
-claude plugin install pstack@cursor-plugins --scope user
+bash ~/.claude/skills/ship/scripts/pstack-pin.sh bump <pinned sha>
 ```
 
-Then set `"autoUpdate": true` on the `cursor-plugins` entry under `extraKnownMarketplaces` in `~/.claude/settings.json` (or toggle it in `/plugin`). pstack is required: `ship` blocks without it. `ship` uses its `create-verification-skill` for the verification gate, and `summarise-session` offers its `correct` when a correction repeats. pstack's skills can only be started by typing them (`/pstack:<name>`), so these skills read and follow the installed file instead. How and why: [docs/upstream.md](docs/upstream.md).
+That writes the commit as the `ref` of the `cursor-plugins` marketplace in `~/.claude/settings.json`, re-adds the marketplace there, and installs or updates the plugin. Then add this hook to `~/.claude/settings.json`, so a new session tells you when pstack has changed upstream, shows what's new, and asks whether to move the pin (at most once a day; `pstack-pin.sh skip` silences one change):
+
+```json
+"hooks": {
+  "SessionStart": [
+    { "matcher": "startup|clear",
+      "hooks": [{ "type": "command", "command": "bash ~/.claude/skills/ship/scripts/pstack-pin.sh check --hook", "timeout": 30 }] }
+  ]
+}
+```
+
+`pstack-pin.sh check` gives the same report on demand. xl-skills itself is not pinned: `~/.claude/skills` links to this checkout, so a merged change applies at once. pstack is required: `ship` blocks without it. Where xl-skills uses it: `ship`'s verification gate (`create-verification-skill`, and `benchmark-checklist` / `principle-explain-the-number` for claimed numbers), `ship`'s optional `blast-radius` check, a decision log for multi-phase and unattended runs (`show-me-your-work`, through `handover` and `execute-phased-plan`), and `summarise-session` offering `correct` when a correction repeats. The rest (for example `/pstack:ketchup`, `/pstack:sharpen`) is there to type. [What overlaps what, and why](docs/reports/2026-11-17-pstack-overlap.md). pstack's skills can only be started by typing them (`/pstack:<name>`), so these skills read and follow the installed file instead. How and why: [docs/upstream.md](docs/upstream.md).
 
 ## To learn more
 
