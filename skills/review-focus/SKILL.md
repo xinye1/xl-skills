@@ -31,10 +31,10 @@ The user is the second developer, approving a PR they won't read line by line. T
 1. **Read the description and the docs it links**, at the PR's head: `gh pr view <pr> --json body,headRefOid,baseRefName,files`. Then read each linked doc at that commit. Treat the description as the author's claims, not as facts.
 2. **Check the premise.** Three things can break it:
    - **The reviewer sections are missing**, or a doc the description depends on isn't in the repo.
-   - **The docs ↔ code verdict doesn't cover the head**: commits that change behaviour or structure landed after the commit it names (`git diff --stat <checked-sha>..<head>`).
+   - **The docs ↔ code verdict doesn't cover the head**: commits that change behaviour or structure landed after the commit it names (`git diff --stat <checked-sha>..<head>`). When the description is the doc, also hash its `## Why` and `## For the reviewer` sections the way the reference says, and compare with the hash the verdict records. A different hash with a changed decision means the verdict is stale.
    - **The verdict is missing.**
 
-   If it's missing or stale, run the check yourself. Use the brief in `ship`'s reference: a fresh subagent given only the diff range and the doc paths, never the description. Check the PR's commits, not the branch you happen to be on. Run `git fetch origin <base> pull/<pr>/head`, then give the checker `<base-sha>...<headRefOid>` as explicit commits.
+   If it's missing or stale, run the check yourself. Use the brief in `ship`'s reference: a fresh subagent given only the diff range and the doc paths, never the description. Check the PR's commits, not the branch you happen to be on. Run `git fetch origin <base> pull/<pr>/head`, then give the checker `<base-sha>...<headRefOid>` as explicit commits, and tell it to read each doc at that commit (`git show <headRefOid>:<path>`), not from the working tree.
 3. **Give the guide**, in this skill's four parts, numbered:
    - the decisions to weigh, from the docs, each with your view;
    - assumptions;
@@ -42,7 +42,7 @@ The user is the second developer, approving a PR they won't read line by line. T
    - deep-dive pointers.
 
    Add a fifth part, **where the code and the docs part ways**, from the check: differences the description lists, and any it doesn't. An unlisted difference is the one place the user has to read code. Point them at the file and line.
-4. **The user decides.** Draft the review the way they rule. Approval means the decisions are agreed and the differences accepted. A change request names the decision or difference it's about. Post it only when they say so, with the one command that matches their ruling: `gh pr review <pr> --approve --body-file <file>` to approve, or `gh pr review <pr> --request-changes --body-file <file>` to ask for changes.
+4. **The user decides.** Draft the review the way they rule. Approval means the decisions are agreed and the differences accepted. A change request names the decision or difference it's about. Post it only when they say so. First check that the PR hasn't moved since the guide: the same `headRefOid` and, when the description is the doc, the same sections hash. If either changed, update the check and the guide and ask again. Then post with the one command that matches their ruling: `gh pr review <pr> --approve --body-file <file>` to approve, or `gh pr review <pr> --request-changes --body-file <file>` to ask for changes.
 
 The guide stays within the PR's own decisions. Correctness bugs and structure are other reviews (`/code-review`, `nuclear-code-review`). If the user wants one, offer it. Don't fold it in.
 

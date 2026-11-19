@@ -288,6 +288,7 @@ On failure: inspect logs (`gh run view --log-failed` for the failing run), fix t
 When the review verdict is `APPROVE` (Step 4) **and** all CI checks are green **and** the PR carries a Step 3b verdict of `PASS` or `PASS+NOTES` that covers its head (or a reasoned `not applicable`, or `skipped at the user's instruction`) **and** a Step 3c docs ↔ code verdict that covers its head, with every gap listed (or `not run (trivial: …)`, or `skipped at the user's instruction`). A PR resumed from Step 0 (States A2, B to B4) with no verdict in its body, or one older than a behavior-bearing change, goes through Step 3b first. A PR goes through Step 3c first, and gets its body refreshed, in any of these cases:
 
 - its body lacks the reviewer sections;
+- its body has no docs ↔ code verdict;
 - its docs ↔ code verdict is older than a change to behaviour or structure;
 - a decision in a doc the verdict covered changed after it ran, including the description's own `## Why` or `## For the reviewer` when the description is the doc.
 

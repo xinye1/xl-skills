@@ -83,6 +83,14 @@ The third docs ↔ code run also caught a slip in the round-2 fix. Splitting Ste
 
 Links now use the full commit SHA: `gh browse` with a short one gives a link that can become ambiguous.
 
+**Round 4 (5 findings, all fixed).** The first round-4 run returned only cached findings, so it was rerun with `--fresh`. Four of the five were on the reviewer's side, which earlier rounds had barely touched.
+
+- A resumed PR could have the reviewer sections but no verdict, and none of Step 7's cases sent it through Step 3c. A missing verdict is now a case.
+- A decision taken from a doc outside the repo was quoted in the description only, where the checker can't see it. It now goes into a repo doc too.
+- `review-focus` checked a verdict against the head commit only. When the description is the doc, it now compares the sections hash too.
+- `review-focus`'s checker could read the docs from whatever branch the reviewer had checked out. It now reads each doc at the PR's head (`git show <headRefOid>:<path>`).
+- A commit landing while the user weighed the guide could be approved unseen. Before posting, `review-focus` now checks that the head and hash haven't moved.
+
 **The owner's rulings.** Four decisions were put to the owner: blocking when a needed doc is missing, decisions inline with links for detail, extending `review-focus` rather than writing a new skill, and leaving `nuclear-code-review` and `adversarial-review` alone. Their answer: "1 keep it, 2 ok, 3 ok, 4 ok."
 
 **Port due.** delivery-guardrail carries spin-offs of all three (`ship`, `grill-into-design`, `review-focus`), so each should adapt this for Concord: Azure DevOps PR links and `az repos pr` in place of `gh`. That is for a session in that repository.

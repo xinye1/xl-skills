@@ -36,7 +36,7 @@ Look in four places:
 - **Docs the branch adds or changes:** `git diff --name-only origin/<base>...HEAD -- docs/ '*.md'`. These are specs, plans, ADRs, reports, method notes and refinement-log entries, and the repo's `docs/INDEX.md` if it keeps one.
 - **Docs the work follows but didn't change:** the spec or plan the branch implements, and the ADRs it relies on. Commit messages, the plan, the handover and the session name them.
 - **The record of a design review.** This means the spec's grill record, which `grill-into-design` writes, and the review log next to a spec (`<spec>.review.md`, from `adversarial-review`).
-- **Docs outside the repo:** an issue, a Claude Doc, a wiki page. Link them, and quote any decision the description depends on. An agent reviewer may not be able to open them.
+- **Docs outside the repo:** an issue, a Claude Doc, a wiki page. Link them. An agent reviewer may not be able to open them, and the docs ↔ code check is given repo paths only. So a decision the PR depends on is written into a repo doc too, quoting the source, the same as the decisions below.
 
 Some decisions are written down only where the reviewer can't see them. Write these into the repo docs before the PR, so the reviewer approves the same record the code was built from. Use the spec's "Changes during implementation" section, an ADR, or the plan.
 
