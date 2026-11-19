@@ -289,7 +289,7 @@ When the review verdict is `APPROVE` (Step 4) **and** all CI checks are green **
 
 - its body lacks the reviewer sections (a trivial PR needs only `## Why` and `Docs: none needed (<reason>)`);
 - its body has no docs ↔ code verdict (a trivial PR's `Docs: none needed (<reason>)` stands in for one);
-- its docs ↔ code verdict is older than a change to behaviour or structure, or names a base other than the PR's;
+- its docs ↔ code verdict is older than a change to behaviour or structure, or names a base or merge base other than the PR's current one;
 - a decision in a doc the verdict covered changed after it ran, including the description's own `## Why` or `## For the reviewer` when the description is the doc.
 
 On a PR that's already open, the fixes Step 3c commits are pushed before the body is refreshed, so the verdict names a commit the PR carries. Like any new commit, they go back through Step 4, and through Step 6 when CI runs. If a teammate has already approved and the description then changes, tell them what changed, because they approved the earlier version.

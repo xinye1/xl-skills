@@ -20,7 +20,7 @@ Newest first. Each entry records what prompted the change, the evidence, what ch
   - the premise and its two conditions: the docs cover the change, and the code follows the docs;
   - sizing: trivial changes skip it, and the rule says when a change needs a doc in the repo;
   - where the docs come from, in four places: docs the branch adds or changes, docs it follows without changing, the record of a design review, and docs outside the repo. Decisions held only in the decision log or the chat are copied into the repo docs;
-  - the template, with fixed headings agents can rely on: `## Why`, `## For the reviewer` (decisions ranked by cost of reversal, linked to their doc section), `## Docs`, `## Docs ↔ code`, `## Change map`, then the existing test, verification and review sections. `## For the reviewer` caps the decisions at about seven, then lists assumptions made without asking, what's safe to skim, and where to look if the reviewer reads code. It and `## Why` fit on one screen; if they can't, the PR is doing too much and gets split;
+  - the template, with fixed headings agents can rely on: `## Why`, `## For the reviewer` (decisions ranked by cost of reversal, linked to their doc section), `## Docs`, `## Docs ↔ code`, `## Change map`, then the existing test plan and verification sections and a new `## Review` section for Step 4's outcome. `## For the reviewer` caps the decisions at about seven, then lists assumptions made without asking, what's safe to skim, and where to look if the reviewer reads code. It and `## Why` fit on one screen; if they can't, the PR is doing too much and gets split;
   - the `## Docs ↔ code` section: a verdict line (COVERED, COVERED with differences, `not run (trivial: …)`, or `skipped at the user's instruction (…)`) and three lists: where the code differs from the docs, what was done but isn't in the docs, and what the docs promise that this PR leaves for later;
   - links: at the head commit, since merging deletes the branch, with the repo path beside each for an agent;
   - the brief for the docs ↔ code check. The check runs on the default model tier (`sonnet`), or `opus` for a large diff that spans many modules. It can run alongside the Step 3b verifier.
@@ -111,6 +111,14 @@ Links now use the full commit SHA: `gh browse` with a short one gives a link tha
 - What `review-focus` notes is now the head, the merge base, and a hash of the author's whole description (everything above blocks other tools append). The merge base replaces the base name. It moves when the PR is retargeted, and also when the base branch takes in some of the PR's commits, which the name can't show. The whole-description hash replaces the list of sections, so a changed doc link counts too.
 - A trivial PR's `Docs: none needed` stands in for a verdict at Step 7, so `ship` no longer sends it to Step 3c, which would only skip it again.
 - The seventh docs ↔ code check noted that the template's verdict line didn't show the `description as the doc, sections <hash>` form. It does now.
+
+**Round 8 (3 findings, all fixed).**
+
+- The verdict line now records the merge base, not just the base branch's name. `ship`'s gate and `review-focus` compare it with the PR's current one. Round 7 had made the same change to what `review-focus` notes for its own guide, but not to the verdict.
+- `review-focus` fetches the PR's commits in step 1, before reading docs at the head or working out the merge base. It used to fetch them only when it had to run the check itself.
+- The second docs ↔ code run sees only the docs and the diff, so it reports a deliberate difference again. One already listed under "Differs from the docs" no longer counts as open.
+
+The eighth docs ↔ code check noted that the log called `## Review` an existing section. It is new, and the log now says so.
 
 **The owner's rulings.** Four decisions were put to the owner: blocking when a needed doc is missing, decisions inline with links for detail, extending `review-focus` rather than writing a new skill, and leaving `nuclear-code-review` and `adversarial-review` alone. Their answer: "1 keep it, 2 ok, 3 ok, 4 ok."
 
