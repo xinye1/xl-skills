@@ -109,7 +109,7 @@ Closes #<issue>
 
 **Who runs it.** A fresh subagent (`Agent`, `general-purpose`) that didn't write the change. Use the default model tier (`sonnet`). Use `opus` when the diff is large or spans many modules. It can run at the same time as the Step 3b verifier.
 
-**What it's given.** The diff range (`origin/<base>...HEAD`) and the repo paths of the docs. Nothing else: no draft description, no summary of the change, no rationale from the chat. The check compares the code with what was written down. Telling it the author's intent in other words would hand it the very framing it exists to check.
+**What it's given.** The diff range, as explicit commits (`<base-sha>...<head-sha>`), and the repo paths of the docs. Nothing else: no summary of the change, no rationale from the chat. The check compares the code with what was written down. Telling it the author's intent in other words would hand it the very framing it exists to check. There is one exception, when the description is the doc (a small change whose story fits in it). Then give it the description's `## Why` and `## For the reviewer` sections as that doc, saved to a file. They are what the reviewer approves.
 
 **What it does.**
 
@@ -125,9 +125,16 @@ It reads only and edits nothing.
 **On `GAPS`.** Each item gets one of three outcomes before review is requested:
 
 - **The code is right and the doc is out of date.** This is the common case: something was learned while building it. Update the doc in this PR, in the spec's "Changes during implementation" section or in the ADR, so the doc the reviewer approves matches the code that merges.
-- **The doc is right.** Fix the code, then run Step 3 again, and Step 3b if behaviour changed.
+- **The doc is right.** Fix the code, then run Step 3 again, and Step 3b if behaviour changed. If review (Step 4) or CI (Step 6) already ran, as on a resumed PR, their results don't cover the fix. Go through them again.
 - **A deliberate difference for now.** List it under "Differs from the docs", with the reason and a follow-up issue.
 
 No gap goes unlisted. An unlisted gap is exactly where approving the docs stops meaning approving the code.
 
-**The verdict covers the commit it ran on.** If a later fix from review or CI changes behaviour or structure, run the check again before the next push and before merging. Fixes to formatting, comments or tests only don't need it. Check with `git diff --stat <checked-sha>..HEAD`.
+**Run it again once the gaps are resolved.** An updated doc or a code fix hasn't been checked yet. Give the second run the same brief, and record its verdict. Two rounds is the limit. A gap still open after the second round goes to the user, rather than a third round.
+
+**The verdict covers the commit it ran on.** Run the check again before the next push and before merging in either case:
+
+- a later fix from review or CI changes behaviour or structure;
+- a doc it covered changes a decision.
+
+Fixes to formatting, comments or tests only don't need it, and neither do doc edits that change only wording. Check with `git diff --stat <checked-sha>..HEAD`.

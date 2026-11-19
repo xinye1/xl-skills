@@ -60,6 +60,14 @@ Newest first. Each entry records what prompted the change, the evidence, what ch
 
 In each case the code was right and the log was out of date, the case the reference calls the common one. This entry now records them.
 
+**What review caught (CodeRabbit CLI, round 1: 5 findings, all fixed).**
+
+- After gaps were resolved by updating a doc, nothing checked the updated doc. The check now runs a second time on the result, and stops there. A gap still open after that goes to the user. A doc edit that changes a decision also triggers a fresh run.
+- `review-focus` could run the check against whatever branch was checked out, not the PR under review. It now fetches the PR's head and base and passes both commits explicitly. `ship`'s brief does the same.
+- When the description is the doc, the checker had no doc to compare with. In that case it now gets the description's `## Why` and `## For the reviewer` sections, which is the doc the reviewer approves.
+- `gh pr review <pr> --approve | --request-changes` read like a shell pipe, and copying it would post an approval. It is now two separate commands.
+- A code fix made in Step 3c on a resumed PR, after review and CI had run, didn't go back through them. It now does.
+
 **The owner's rulings.** Four decisions were put to the owner: blocking when a needed doc is missing, decisions inline with links for detail, extending `review-focus` rather than writing a new skill, and leaving `nuclear-code-review` and `adversarial-review` alone. Their answer: "1 keep it, 2 ok, 3 ok, 4 ok."
 
 **Port due.** delivery-guardrail carries spin-offs of all three (`ship`, `grill-into-design`, `review-focus`), so each should adapt this for Concord: Azure DevOps PR links and `az repos pr` in place of `gh`. That is for a session in that repository.

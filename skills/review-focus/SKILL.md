@@ -34,7 +34,7 @@ The user is the second developer, approving a PR they won't read line by line. T
    - **The docs ↔ code verdict doesn't cover the head**: commits that change behaviour or structure landed after the commit it names (`git diff --stat <checked-sha>..<head>`).
    - **The verdict is missing.**
 
-   If it's missing or stale, run the check yourself. Use the brief in `ship`'s reference: a fresh subagent given only the diff range and the doc paths, never the description.
+   If it's missing or stale, run the check yourself. Use the brief in `ship`'s reference: a fresh subagent given only the diff range and the doc paths, never the description. Check the PR's commits, not the branch you happen to be on. Run `git fetch origin <base> pull/<pr>/head`, then give the checker `<base-sha>...<headRefOid>` as explicit commits.
 3. **Give the guide**, in this skill's four parts, numbered:
    - the decisions to weigh, from the docs, each with your view;
    - assumptions;
@@ -42,7 +42,7 @@ The user is the second developer, approving a PR they won't read line by line. T
    - deep-dive pointers.
 
    Add a fifth part, **where the code and the docs part ways**, from the check: differences the description lists, and any it doesn't. An unlisted difference is the one place the user has to read code. Point them at the file and line.
-4. **The user decides.** Draft the review the way they rule. Approval means the decisions are agreed and the differences accepted. A change request names the decision or difference it's about. Post it only when they say so (`gh pr review <pr> --approve | --request-changes --body-file <file>`).
+4. **The user decides.** Draft the review the way they rule. Approval means the decisions are agreed and the differences accepted. A change request names the decision or difference it's about. Post it only when they say so, with the one command that matches their ruling: `gh pr review <pr> --approve --body-file <file>` to approve, or `gh pr review <pr> --request-changes --body-file <file>` to ask for changes.
 
 The guide stays within the PR's own decisions. Correctness bugs and structure are other reviews (`/code-review`, `nuclear-code-review`). If the user wants one, offer it. Don't fold it in.
 
