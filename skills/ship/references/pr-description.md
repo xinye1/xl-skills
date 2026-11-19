@@ -75,7 +75,8 @@ Worth a look if you read code: <one to three files or hunks where the risk conce
 
 ## Docs ↔ code
 <COVERED | COVERED, with the differences below | not run (trivial: <reason>) |
-skipped at the user's instruction (<reason>)> at <short sha> against <base>, by a fresh agent
+skipped at the user's instruction (<reason>)> at <short sha> against <base>
+[; description as the doc, sections <hash>], by a fresh agent
 - Differs from the docs: <what, why, and the follow-up issue>, or "none"
 - Done but not in the docs: "none" (each one found was written into a doc: <which>)
 - In the docs but not in this PR: <what, and where it will happen>, or "none"

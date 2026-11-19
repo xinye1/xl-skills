@@ -106,6 +106,12 @@ Links now use the full commit SHA: `gh browse` with a short one gives a link tha
 - When the premise is broken (reviewer sections or a doc missing), `review-focus` now says so to the user, offers a change request or a code review, and doesn't offer approval on the description alone. Before, it named the problem but went on to the guide anyway.
 - A trivial PR (`Docs: none needed`) has no reviewer sections by design. `ship`'s Step 7 no longer sends it back to Step 3c for them. `review-focus` checks that the diff really is trivial, then gives a short guide to the diff itself. The docs ↔ code check caught the `review-focus` half, and CodeRabbit the `ship` half.
 
+**Round 7 (3 findings, all fixed).** Rounds 5 to 7 each found another thing that could change between the guide and the posted review. So the rule stopped listing them:
+
+- What `review-focus` notes is now the head, the merge base, and a hash of the author's whole description (everything above blocks other tools append). The merge base replaces the base name. It moves when the PR is retargeted, and also when the base branch takes in some of the PR's commits, which the name can't show. The whole-description hash replaces the list of sections, so a changed doc link counts too.
+- A trivial PR's `Docs: none needed` stands in for a verdict at Step 7, so `ship` no longer sends it to Step 3c, which would only skip it again.
+- The seventh docs ↔ code check noted that the template's verdict line didn't show the `description as the doc, sections <hash>` form. It does now.
+
 **The owner's rulings.** Four decisions were put to the owner: blocking when a needed doc is missing, decisions inline with links for detail, extending `review-focus` rather than writing a new skill, and leaving `nuclear-code-review` and `adversarial-review` alone. Their answer: "1 keep it, 2 ok, 3 ok, 4 ok."
 
 **Port due.** delivery-guardrail carries spin-offs of all three (`ship`, `grill-into-design`, `review-focus`), so each should adapt this for Concord: Azure DevOps PR links and `az repos pr` in place of `gh`. That is for a session in that repository.
