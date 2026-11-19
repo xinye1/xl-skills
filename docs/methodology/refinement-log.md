@@ -92,6 +92,13 @@ Links now use the full commit SHA: `gh browse` with a short one gives a link tha
 - `review-focus`'s checker could read the docs from whatever branch the reviewer had checked out. It now reads each doc at the PR's head (`git show <headRefOid>:<path>`).
 - A commit landing while the user weighed the guide could be approved unseen. Before posting, `review-focus` now checks that the head and hash haven't moved.
 
+**Round 5 (5 findings, all fixed).** All five were about something changing after a check had run.
+
+- `review-focus` now notes, for every PR, what its guide covers: the head commit, the base branch, and a hash of the reviewer sections. Before posting it checks all three. A retargeted PR has the same head but a different diff, and an author can edit the reviewer sections without a commit. (Two findings.)
+- A later commit that changes a decision in a covered doc, with no code change, now makes the verdict stale in `review-focus`, as it already did in `ship`.
+- When `review-focus` runs the check on a PR whose description is the doc, it gives the checker those sections, as `ship` does.
+- On a PR that's already open, the fixes Step 3c commits are pushed before the body is refreshed, and go back through review (and CI, where it runs).
+
 **The owner's rulings.** Four decisions were put to the owner: blocking when a needed doc is missing, decisions inline with links for detail, extending `review-focus` rather than writing a new skill, and leaving `nuclear-code-review` and `adversarial-review` alone. Their answer: "1 keep it, 2 ok, 3 ok, 4 ok."
 
 **Port due.** delivery-guardrail carries spin-offs of all three (`ship`, `grill-into-design`, `review-focus`), so each should adapt this for Concord: Azure DevOps PR links and `az repos pr` in place of `gh`. That is for a session in that repository.

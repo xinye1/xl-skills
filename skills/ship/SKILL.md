@@ -292,7 +292,7 @@ When the review verdict is `APPROVE` (Step 4) **and** all CI checks are green **
 - its docs ↔ code verdict is older than a change to behaviour or structure;
 - a decision in a doc the verdict covered changed after it ran, including the description's own `## Why` or `## For the reviewer` when the description is the doc.
 
-If a teammate has already approved and the description then changes, tell them what changed, because they approved the earlier version.
+On a PR that's already open, the fixes Step 3c commits are pushed before the body is refreshed, so the verdict names a commit the PR carries. Like any new commit, they go back through Step 4, and through Step 6 when CI runs. If a teammate has already approved and the description then changes, tell them what changed, because they approved the earlier version.
 
 ```bash
 gh pr merge <pr> --merge --delete-branch
