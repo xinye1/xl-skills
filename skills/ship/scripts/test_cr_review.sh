@@ -43,6 +43,10 @@ check "retried past two rate limits" [ "$(cat "$tmp/s1")" = 3 ]
 check "reports the trailer" grep -q 'Review complete' "$tmp/o1"
 check "keeps the full output" grep -q 'No findings' "$tmp/out1"
 
+# an output folder that doesn't exist yet is created
+STATE="$tmp/s3" "$here/cr_review.sh" "$tmp/new/branch/out3" >/dev/null
+check "creates a missing output folder" grep -q 'No findings' "$tmp/new/branch/out3"
+
 # another CLI failure is not retried
 STATE="$tmp/s2" FAIL=1 "$here/cr_review.sh" "$tmp/out2" >/dev/null 2>"$tmp/e2"
 rc=$?

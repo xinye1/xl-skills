@@ -2,6 +2,62 @@
 
 Newest first. Each entry records what prompted the change, the evidence, what changed, what was considered and rejected, and what the pass caught along the way.
 
+## 2026-11-20 — the review loop stops after three rounds, and what it over-hardened is cut back
+
+**Trigger.** While PR #52 waited on its fourteenth CodeRabbit run, the owner asked: "why have there be so many sessions with multiple coderabbit review rounds, some of them have as high as 8 rounds. If this is a new practice we started to use explain why, and check what the benefits have been, then check if they are worth the effort, time, token consumption etc., in fact check if these reviews and changes might have "over polished" things."
+
+**Why the loops ran long.** The loop wasn't new. `ship` Step 4 has said "loop to `APPROVE`" since 2026-06-06, and nothing else ended it. What changed was `cr_review.sh` (2026-10-09). It queues runs across sessions and waits out rate limits, which used to end loops early. After that, another round cost only waiting. delivery-guardrail's `ship` already capped its loop (one CodeRabbit pass, then code review rerun at most twice). xl-skills, upstream of it, never had a cap.
+
+**The evidence.** A subagent read every session transcript on this machine. It found 45 sessions (not counting #52's) with 152 completed CodeRabbit runs. The data is in the session's scratchpad (`cr_loops.json`), not kept.
+
+- Code diffs started high and fell to zero in 4 to 7 runs (for example 12, 3, 3, 0). The first rounds were clearly worth it.
+- The last two rounds of the 18 sessions with 4 or more runs had 29 findings in the sample:
+  - 3 were defects a user would hit in normal use;
+  - 13 were narrow edge cases, races or contrived orders of events;
+  - 10 were wording or consistency;
+  - 3 were caused by a fix from an earlier round of the same loop.
+- Loops on skill and procedure text never settled. The pstack session went 4, 4, 3, 8, 7, 3, 1, 5. #52 went 5, 3, 2, 5, 5, 4, 3, 3, 2, 4, 3, 6, 4, 1. CodeRabbit kept asking what happens if something changes between two steps. Each fix added a step, and the new step drew the next question. It labelled almost all of these "major".
+- In sessions with 4 or more runs, 40–95% of output tokens came after the first run.
+- The heavier cost is skill length, paid on every load. `ship` grew from 1,678 words (April) to 3,918 (October) to 6,318 (after #52).
+
+**The owner's ruling.** Three options were put to them: cap the loop and trim what it over-hardened, cap only, or leave it. They chose "Cap and trim (Recommended)".
+
+**What changed.**
+
+- **`ship` Step 4 stops after three rounds.** Rounds 1 and 2 fix every real finding. From round 3, fix only a defect someone would hit in normal use: a wrong command, a step that can't run, a gate that lets unreviewed code through, lost data, exposed credentials. A race counts only if something likely triggers it. The rest are declined in one line in the PR's `## Review`, or filed as an issue. A fourth round only checks round 3's fixes. If it still finds a normal-use defect, the user decides. The same limit applies to the fallback reviewer.
+- **`ship` says when a CLI run is cached.** In #52 a plain rerun printed "No fresh detailed file review was performed" and repeated round 3's findings. A run like that isn't a review. Rerun it with `--fresh`.
+
+**What was cut.** A fresh `opus` agent, not anchored on the author's view, audited `ship`, its PR-description reference and `pstack-pin.sh`. It looked for rules that guard against something rare here and cost more than they save. It never recommended cutting a guard against data loss, exposed credentials, merging unreviewed code, or a normal-use failure. All twelve of its cuts were taken.
+
+- **The docs ↔ code check runs at Step 3c and at Step 7 only.** It no longer runs on every push, and `review-focus` no longer reruns it before posting unless the head, base or description moved. Both reruns were added in #52's late rounds. A later step already covers the same risk: Step 7's check, and `review-focus`'s own check.
+- **`ship` text:**
+  - CodeRabbit CLI version notes and the run's rationale, said three times, are now said once.
+  - The `stats.json` sentence is gone.
+  - The "installed but not pinned" migration is one sentence.
+  - The rules for reporting a claimed number no longer restate pstack's checklists. `ship` already says not to copy pstack's text, which changes when the pin moves.
+  - The PR template rule lives in the reference only.
+  - In the reference: the second-run bookkeeping, "docs checked" in the verdict line, and the full-SHA explanation are shortened or gone.
+- **`pstack-pin.sh`, 27 lines; its test, 58:**
+  - The lock against two bumps at once is gone. A bump runs only on the user's yes, and the lock caused two bugs of its own: a trap that never released it, and a path-quoting fix.
+  - So is support for a pin held as a branch or tag. Here the ref is a SHA or absent.
+  - So is putting the old plugin back after a failed update. Now a rollback restores the settings entry and the marketplace, then says to run `bump` again if pstack doesn't load.
+- **Kept, though a cut might be expected:**
+  - Running CodeRabbit inline. A summarising subagent once turned a rate-limit abort into a false APPROVE.
+  - `--match-head-commit` and the no-auto-merge rule.
+  - Restoring only pstack's own settings entry, because a whole-file restore would wipe other sessions' changes.
+  - Keeping settings at mode 0600, because they can hold credentials.
+  - The temporary-folder clone, and the post-bump check of the installed files.
+
+**Considered and rejected.**
+
+- *Leaving "loop until clean".* On prose, it doesn't end.
+- *A cap without the trim.* The cap stops new weight but keeps the old. Every session that loads `ship` keeps paying for rules a capped loop would never have added.
+- *Cutting the docs ↔ code check entirely.* It is what makes "approve the docs, approve the PR" hold. Only its extra reruns were cut.
+
+**Found while shipping it.** `cr_review.sh` failed on this PR's first run. The evidence folder for a new branch didn't exist yet, and the wrapper reported "the CLI failed (exit 1)" though nothing had run. Every new branch whose evidence folder doesn't exist yet hits this, a normal-use defect. The wrapper now creates the folder, and a test covers it.
+
+**Review (CodeRabbit CLI, under the new limit).** Round 1, 1 finding, fixed: Step 7 still required `APPROVE`, so a review that stopped under the limit with only declined findings could never pass the gate. Step 7 now also accepts a review stopped under Step 4's limit with no normal-use defect open, and each declined finding listed in `## Review`. Round 2, 1 finding, declined: compare the base commit as well as its name before `review-focus` posts. The three-dot diff runs from the merge base, so the base moving forward doesn't change it. The narrow case where it does was already declined on #52 and is filed in [#51](https://github.com/xinye1/xl-skills/issues/51). The review stopped there, at two rounds.
+
 ## 2026-11-19 — the PR description is written for a reviewer who approves the docs, not the code
 
 **Trigger.** The user, who runs a team doing agentic delivery, described how PR review works there. One developer raises a PR and another approves it. The second "is impossible … to read all the code, so they are expected to understand enough to make decisions on approval or suggesting changes." So the PR body should carry, inline or by link, the docs written during the work: "the feature description, design, intent, decisions, answer to grilling questions". Their premise: "Assuming that the code changes have been done relatively faithfully based on the documentation, approving the documentation … should imply approval of the PR itself." A second reader is an agent reviewing the PR as a whole.

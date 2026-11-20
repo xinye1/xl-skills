@@ -49,18 +49,17 @@ to() { # to SECONDS CMD...: run with a time limit where the platform has one
 	else "$@"; fi
 }
 
-source_ref() { # $1=sha: the 40-char SHA in settings, or empty; $1=any: whatever ref is there
-	python3 - "$SETTINGS" "$MARKETPLACE" "$1" <<'EOF'
+pinned_ref() { # the 40-char SHA the settings pin, or empty
+	python3 - "$SETTINGS" "$MARKETPLACE" <<'EOF'
 import json, re, sys
 try:
     src = json.load(open(sys.argv[1]))["extraKnownMarketplaces"][sys.argv[2]]["source"]
 except (OSError, ValueError, KeyError, TypeError):
     sys.exit(0)
 ref = src.get("ref", "")
-print(ref if sys.argv[3] == "any" or re.fullmatch(r"[0-9a-f]{40}", ref) else "")
+print(ref if re.fullmatch(r"[0-9a-f]{40}", ref) else "")
 EOF
 }
-pinned_ref() { source_ref sha; }
 
 installed_sha() { # the commit Claude Code installed pstack from, or empty when not installed
 	python3 - "$INSTALLED" "$PLUGIN" <<'EOF'
@@ -214,18 +213,6 @@ print(json.dumps({"systemMessage": "pstack update available. " + first + " Claud
 	exit 0
 }
 
-LOCK_DIR=
-lock() { # one bump at a time on this machine; mkdir is atomic everywhere
-	LOCK_DIR=$STATE/bump.lock.d
-	local waited=0
-	until mkdir "$LOCK_DIR" 2>/dev/null; do
-		[ $waited -ge 600 ] && die "another bump has held $LOCK_DIR for 10 minutes (remove it if none is running)"
-		sleep 1
-		waited=$((waited + 1))
-	done
-	trap 'rmdir "$LOCK_DIR" 2>/dev/null' EXIT
-}
-
 entry() { # entry save FILE | pin SHA | restore FILE: the cursor-plugins entry in settings, and only it
 	python3 - "$SETTINGS" "$MARKETPLACE" "$REPO_SLUG" "$@" <<'EOF'
 import json, os, sys
@@ -268,12 +255,8 @@ cmd_bump() {
 	target=$(git -C "$CLONE" rev-parse --verify -q "$target^{commit}") || die "unknown commit: ${1:-}"
 	git -C "$CLONE" merge-base --is-ancestor "$target" main || die "$target is not on upstream main"
 	mkdir -p "$STATE" "$(dirname "$SETTINGS")"
-	# One bump at a time on this machine, from reading the old state to the end:
-	# a rollback must not undo another session's finished bump.
-	lock
-	local old prev had_entry=0 was_installed saved=$STATE/entry.before-bump.json
+	local old had_entry=0 was_installed saved=$STATE/entry.before-bump.json
 	old=$(pinned_ref)
-	prev=$(source_ref any)
 	was_installed=$(installed_sha)
 	entry save "$saved" || die "could not save the current entry; settings unchanged"
 	[ "$(cat "$saved")" = null ] || had_entry=1
@@ -283,26 +266,16 @@ cmd_bump() {
 	# one makes Claude Code ignore the marketplace, and pstack fails to load.
 	rollback() {
 		echo "pstack-pin: $1; putting the previous pin back" >&2
-		local back=ok now
+		local back=ok
 		entry restore "$saved" || back=failed
-		if [ -n "$prev" ]; then
-			"$CLAUDE" plugin marketplace add "$REPO_SLUG#$prev" || back=failed
-		elif [ "$had_entry" = 1 ]; then
-			"$CLAUDE" plugin marketplace add "$REPO_SLUG" || back=failed
+		if [ "$had_entry" = 1 ]; then
+			"$CLAUDE" plugin marketplace add "$REPO_SLUG${old:+#$old}" || back=failed
 		else
 			"$CLAUDE" plugin marketplace remove "$MARKETPLACE" --scope user || back=failed
 		fi
-		# A failed step may still have changed the plugin: put back what was installed.
-		now=$(installed_sha)
-		if [ -z "$was_installed" ]; then
-			[ -z "$now" ] || "$CLAUDE" plugin uninstall "$PLUGIN" --scope user || back=failed
-		elif [ "$now" != "$was_installed" ] ||
-			{ [ "$was_installed" != unknown ] && ! installed_matches "$was_installed"; }; then
-			[ -z "$now" ] || "$CLAUDE" plugin uninstall "$PLUGIN" --scope user
-			"$CLAUDE" plugin install "$PLUGIN" --scope user || back=failed
-		fi
-		[ $back = ok ] || die "rollback incomplete; check the cursor-plugins entry in $SETTINGS (it was: $(cat "$saved")), then run: $CLAUDE plugin marketplace add $REPO_SLUG${prev:+#$prev}${was_installed:+ && $CLAUDE plugin install $PLUGIN --scope user}"
-		die "$1; the pin is unchanged${old:+ at ${old:0:7}}"
+		[ $back = ok ] || die "rollback incomplete; check the cursor-plugins entry in $SETTINGS (it was: $(cat "$saved")), then run: $CLAUDE plugin marketplace add $REPO_SLUG${old:+#$old}"
+		# The failed step may have left the plugin half-changed; a rerun puts it right.
+		die "$1; the pin is unchanged${old:+ at ${old:0:7}}. If pstack doesn't load, run bump again."
 	}
 	# A source change has to be re-added before Claude Code uses it again.
 	"$CLAUDE" plugin marketplace add "$REPO_SLUG#$target" || rollback "marketplace add failed"
