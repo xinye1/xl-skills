@@ -261,7 +261,7 @@ When a later push changes the docs, or a check runs again, refresh your sections
 
 The `Closes #<n>` footer is REQUIRED whenever the work has a tracking issue — the merge event is what closes delivered-work issues (never an out-of-band `gh issue close`). One line per issue this PR delivers, and when the PR completes a feature, also `Closes #<feature-parent>` — GitHub sub-issues don't auto-close the parent. Omit the footer only when no issue exists.
 
-If the repo has `.github/pull_request_template.md`, fit the sections above into its headings rather than overriding it (with `--body-file`, gh doesn't apply the template for you).
+If the repo has `.github/pull_request_template.md`, keep the sections above and add the template's headings after them, filled in (with `--body-file`, gh doesn't apply the template for you).
 
 Stash the PR number for Steps 6–8.
 
@@ -289,7 +289,7 @@ When the review verdict is `APPROVE` (Step 4) **and** all CI checks are green **
 
 - its body lacks the reviewer sections (a trivial PR needs only `## Why` and `Docs: none needed (<reason>)`);
 - its body has no docs ↔ code verdict (a trivial PR's `Docs: none needed (<reason>)` stands in for one);
-- its docs ↔ code verdict is older than a change to behaviour or structure, or names a base or merge base other than the PR's current one;
+- its docs ↔ code verdict is older than a change to behaviour or structure, or names a base or merge base other than the PR's current one, or didn't read a doc `## Docs` now links;
 - a decision or promised behaviour in a doc the verdict covered changed after it ran, including the description's own `## Why` or `## For the reviewer` when the description is the doc.
 
 On a PR that's already open, the fixes Step 3c commits are pushed before the body is refreshed, so the verdict names a commit the PR carries. Like any new commit, they go back through Step 4, and through Step 6 when CI runs. If a teammate has already approved and the description then changes, tell them what changed, because they approved the earlier version.

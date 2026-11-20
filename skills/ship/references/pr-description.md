@@ -47,7 +47,7 @@ Copying them into the description alone doesn't count. A description is edited a
 
 ## The template
 
-Use these headings in this order. Agents rely on them. If the repo has `.github/pull_request_template.md`, fit these sections into its headings instead of replacing them.
+Use these headings in this order. Agents rely on them. If the repo has `.github/pull_request_template.md`, keep these headings as they are and add the template's own headings after them, filled in, rather than dropping either. `ship` and `review-focus` look for these headings by name.
 
 ```markdown
 ## Why
@@ -75,8 +75,8 @@ Worth a look if you read code: <one to three files or hunks where the risk conce
 
 ## Docs ↔ code
 <COVERED | COVERED, with the differences below | not run (trivial: <reason>) |
-skipped at the user's instruction (<reason>)> at <short sha> against <base> (merge base <short sha>)
-[; description as the doc, sections <hash>], by a fresh agent
+skipped at the user's instruction (<reason>)> at <short sha> against <base> (merge base <short sha>),
+docs checked: <repo paths>[; description as the doc, sections <hash>], by a fresh agent
 - Differs from the docs: <what, why, and the follow-up issue>, or "none"
 - Done but not in the docs: "none" (each one found was written into a doc: <which>)
 - In the docs but not in this PR: <what, and where it will happen>, or "none"
@@ -131,9 +131,9 @@ It reads only and edits nothing.
 
 No gap goes unlisted. An unlisted gap is exactly where approving the docs stops meaning approving the code.
 
-**Run it again once the gaps are resolved.** An updated doc or a code fix hasn't been checked yet. Commit the fixes first, so the second run checks what the PR will carry. Give the second run the same brief, and record its verdict. The second run sees only the docs and the diff, so it reports a deliberate difference again. One already listed under "Differs from the docs" isn't open. Two rounds is the limit. A gap still open after the second round goes to the user, rather than a third round.
+**Run it again once the gaps are resolved.** An updated doc or a code fix hasn't been checked yet. Commit the fixes first, so the second run checks what the PR will carry. Give the second run the same brief, and record its verdict. The second run sees only the docs and the diff, so it reports a deliberate difference again, and may say `GAPS`. If every gap it reports is already listed under "Differs from the docs", the verdict is `COVERED, with the differences below`. Keep the checker's own report with the evidence. Two rounds is the limit. A gap still open after the second round goes to the user, rather than a third round.
 
-**The verdict covers the commit it ran on, and the diff it was compared with.** So the verdict line names the head, the base and the merge base (`git merge-base origin/<base> HEAD`). The diff can change while the head stays the same: when the PR is retargeted, or when the base branch takes in some of the PR's commits. Either moves the merge base, so run the check again. Also run it again before the next push and before merging in either case:
+**The verdict covers the commit it ran on, and the diff it was compared with.** So the verdict line names the head, the base, the merge base (`git merge-base origin/<base> HEAD`) and the docs checked. The diff can change while the head stays the same: when the PR is retargeted, or when the base branch takes in some of the PR's commits. If the base or merge base differs from the PR's current one, or `## Docs` now links a doc the check didn't read, run the check again. Also run it again before the next push and before merging in either case:
 
 - a later fix from review or CI changes behaviour or structure;
 - a doc it covered changes a decision or a promised behaviour ("delete inactive accounts" becoming "delete all accounts" is one, with no decision in sight). When the description is the doc, editing its `## Why` or `## For the reviewer` doesn't move the head commit, so a verdict that names the commit can't show the edit. So the verdict line also records which text was checked: `description as the doc, sections <hash>`. The hash is the first 12 characters of the `sha256sum` of the file of checked sections the checker was given. Before merging, hash the current sections the same way. If the hash differs and a decision or a promised behaviour changed, run the check again.

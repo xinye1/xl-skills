@@ -125,6 +125,13 @@ The eighth docs ↔ code check noted that the log called `## Review` an existing
 - The rerun rule watched for changed decisions only. A doc edit can change what the code promises to do with no decision in sight: "delete inactive accounts" becoming "delete all accounts". `ship`, the reference and `review-focus` now rerun the check on a changed decision or promised behaviour.
 - `review-focus` accepted any verdict that was present and current, including `GAPS` or `skipped at the user's instruction`. Now only a `COVERED` verdict on the PR's current head and merge base lets it offer approval on the description alone. Anything else, it runs the check itself.
 
+**Round 10 (4 findings, all fixed).**
+
+- `review-focus` notes the base branch's name again, beside the merge base. Round 7 had swapped one for the other, but a PR moved between two branches with the same merge base keeps it.
+- The verdict line names the docs it checked. If `## Docs` later links a doc the check didn't read, the verdict is stale in `ship` and in `review-focus`.
+- When every gap the second run reports is already a listed deliberate difference, the verdict is `COVERED, with the differences below`, and the checker's own report is kept with the evidence. Round 8 had said such a gap isn't open, but not what verdict to record, so `review-focus` would have rerun the check on the `GAPS` it saw.
+- With a repo PR template, the required headings stay and the template's headings are added after them. Fitting the sections into the template's headings could drop the ones `ship` and `review-focus` look for by name.
+
 **The owner's rulings.** Four decisions were put to the owner: blocking when a needed doc is missing, decisions inline with links for detail, extending `review-focus` rather than writing a new skill, and leaving `nuclear-code-review` and `adversarial-review` alone. Their answer: "1 keep it, 2 ok, 3 ok, 4 ok."
 
 **Port due.** delivery-guardrail carries spin-offs of all three (`ship`, `grill-into-design`, `review-focus`), so each should adapt this for Concord: Azure DevOps PR links and `az repos pr` in place of `gh`. That is for a session in that repository.
