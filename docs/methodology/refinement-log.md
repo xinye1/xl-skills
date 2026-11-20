@@ -120,6 +120,11 @@ Links now use the full commit SHA: `gh browse` with a short one gives a link tha
 
 The eighth docs ↔ code check noted that the log called `## Review` an existing section. It is new, and the log now says so.
 
+**Round 9 (2 findings, both fixed).**
+
+- The rerun rule watched for changed decisions only. A doc edit can change what the code promises to do with no decision in sight: "delete inactive accounts" becoming "delete all accounts". `ship`, the reference and `review-focus` now rerun the check on a changed decision or promised behaviour.
+- `review-focus` accepted any verdict that was present and current, including `GAPS` or `skipped at the user's instruction`. Now only a `COVERED` verdict on the PR's current head and merge base lets it offer approval on the description alone. Anything else, it runs the check itself.
+
 **The owner's rulings.** Four decisions were put to the owner: blocking when a needed doc is missing, decisions inline with links for detail, extending `review-focus` rather than writing a new skill, and leaving `nuclear-code-review` and `adversarial-review` alone. Their answer: "1 keep it, 2 ok, 3 ok, 4 ok."
 
 **Port due.** delivery-guardrail carries spin-offs of all three (`ship`, `grill-into-design`, `review-focus`), so each should adapt this for Concord: Azure DevOps PR links and `az repos pr` in place of `gh`. That is for a session in that repository.

@@ -33,7 +33,7 @@ Classify and announce the detected state in one line (e.g. "Resuming at merge fo
 |---|---|---|
 | **A. Uncommitted changes** | dirty tree (`git status --porcelain` non-empty), no open PR for current branch | Step 1 |
 | **A2. Committed, not pushed** | clean tree on a feature branch with no open PR AND ((commits-ahead-of-upstream > 0) OR (`no-upstream` AND commits-beyond-base > 0)) | Steps 3b and 3c, then Step 4 |
-| **A3. Iteration on existing PR** | dirty tree OR commits-ahead-of-upstream > 0, on a branch whose own PR is currently open | Commit any dirty work (Step 2 logic — reuse the existing branch). If the unpushed commits change behaviour or structure, or a decision in a doc, run Steps 3b and 3c on them first. Then push (Step 5 push only — PR already exists), refresh the body, and re-evaluate as B / B2 / B3 / B4 |
+| **A3. Iteration on existing PR** | dirty tree OR commits-ahead-of-upstream > 0, on a branch whose own PR is currently open | Commit any dirty work (Step 2 logic — reuse the existing branch). If the unpushed commits change behaviour or structure, or a decision or promised behaviour in a doc, run Steps 3b and 3c on them first. Then push (Step 5 push only — PR already exists), refresh the body, and re-evaluate as B / B2 / B3 / B4 |
 | **B. PR open, awaiting review** | clean tree, in sync with remote, open PR, `reviewDecision` is `null` or `REVIEW_REQUIRED` | Step 4 |
 | **B2. PR open, changes requested** | clean + in sync, open PR with `reviewDecision: CHANGES_REQUESTED` | Step 4 — fix issues first, then re-review |
 | **B3. PR approved, CI not green** | clean + in sync, open PR with `reviewDecision: APPROVED`, at least one check pending or failing | Step 6 |
@@ -290,7 +290,7 @@ When the review verdict is `APPROVE` (Step 4) **and** all CI checks are green **
 - its body lacks the reviewer sections (a trivial PR needs only `## Why` and `Docs: none needed (<reason>)`);
 - its body has no docs ↔ code verdict (a trivial PR's `Docs: none needed (<reason>)` stands in for one);
 - its docs ↔ code verdict is older than a change to behaviour or structure, or names a base or merge base other than the PR's current one;
-- a decision in a doc the verdict covered changed after it ran, including the description's own `## Why` or `## For the reviewer` when the description is the doc.
+- a decision or promised behaviour in a doc the verdict covered changed after it ran, including the description's own `## Why` or `## For the reviewer` when the description is the doc.
 
 On a PR that's already open, the fixes Step 3c commits are pushed before the body is refreshed, so the verdict names a commit the PR carries. Like any new commit, they go back through Step 4, and through Step 6 when CI runs. If a teammate has already approved and the description then changes, tell them what changed, because they approved the earlier version.
 
