@@ -170,7 +170,7 @@ A teammate approves the PR. They decide from the description, not by reading all
 1. **Size it.** A trivial change, such as a typo, a dependency bump with no change in behaviour, or a one-line fix whose commit states the cause, gets `Docs: none needed (<reason>)` and skips to Step 4. Everything else continues.
 2. **Find the docs.** These are the specs, plans, ADRs, grill records, review logs and method notes this branch adds, changes or follows. Some decisions are written down only where the reviewer can't see them: in the decision log on this machine, or only in chat. Write those into the repo docs now, as part of this PR.
 3. **A change that needs a doc and has none stops here.** That is a change with a decision a reviewer should weigh. Ask: "This PR makes decisions a reviewer should weigh (<list>), and no doc records them. Write one now from this session?" On a yes, write it in the repo's docs convention and commit it on this branch. On a no, shipping stays blocked unless the user explicitly says to ship without docs. Then the description says `Docs: skipped at the user's instruction (<reason>)`. When the whole story fits in the description, as with a bug's diagnosis or a small change's one decision, the description is the doc.
-4. **Check that the code follows the docs.** Send a fresh subagent with the diff range and the doc paths only (the brief is in the reference). Resolve every gap it finds before review is requested. Update a doc that is out of date, fix code that strays from the doc, or list a deliberate difference with its reason. Commit the fixes, then run the check once more on that commit. No gap stays unlisted. A verdict says only what was true of the PR when it ran, so the check runs again on every later push and right before merging (the reference's "When it runs"). A code fix made here, after review or CI has already run, goes back through them.
+4. **Check that the code follows the docs.** Send a fresh subagent with the diff range and the doc paths only (the brief is in the reference). Resolve every gap it finds before review is requested. Update a doc that is out of date, fix code that strays from the doc, or list a deliberate difference with its reason. Commit the fixes, then run the check once more on that commit. No gap stays unlisted. A verdict says only what was true of the PR when it ran, so the check runs again before every later push, including a first push that follows a review fix, and right before merging (the reference's "When it runs"). A code fix made here, after review or CI has already run, goes back through them.
 
 ## Step 4: Independent code review
 
@@ -288,6 +288,7 @@ On failure: inspect logs (`gh run view --log-failed` for the failing run), fix t
 When the review verdict is `APPROVE` (Step 4) **and** all CI checks are green **and** the PR carries a Step 3b verdict of `PASS` or `PASS+NOTES` that covers its head (or a reasoned `not applicable`, or `skipped at the user's instruction`) **and** a docs ↔ code verdict of `COVERED` (with every difference listed) from a check run right before merging, on the PR as it is now (or `not run (trivial: …)`, or `skipped at the user's instruction`). A PR resumed from Step 0 (States A2, B to B4) with no verdict in its body, or one older than a behavior-bearing change, goes through Step 3b first. Then:
 
 - If its body lacks the reviewer sections, it goes through Step 3c first. A trivial PR needs only `## Why` and `Docs: none needed (<reason>)`, which also stands in for the check.
+- If the user explicitly said to ship without docs, `Docs: skipped at the user's instruction (<reason>)` stands. There is nothing to check, and the verdict line says so rather than claiming a check ran.
 - Otherwise, run the docs ↔ code check (the brief is in the reference) on the PR's current head, base and docs, and put its verdict in the body. Resolve a gap it finds as Step 3c says. On an open PR the fixes are pushed before the body is refreshed, and like any new commit they go back through Step 4, and through Step 6 when CI runs. Then the check runs again.
 
 If a teammate has already approved and the description then changes, tell them what changed, because they approved the earlier version.
@@ -298,7 +299,7 @@ Merge the head the check ran on, so a push that lands during the check can't mer
 gh pr merge <pr> --merge --delete-branch --match-head-commit <checked-sha>
 ```
 
-For pre-merge-gated CI you can let GitHub merge the moment the gate goes green: `gh pr merge <pr> --auto --merge --delete-branch --match-head-commit <checked-sha>` (needs the repo's *Allow auto-merge* setting; otherwise merge manually once Step 6 is green).
+Don't use auto-merge (`--auto`): a head pushed while it waits can merge without the check. Wait for Step 6 to go green, run the gate, then merge.
 
 The `--delete-branch` flag removes the remote branch. Step 8 removes the local branch and any worktree.
 

@@ -142,6 +142,16 @@ So the check now runs again on the PR as it is, right before each decision that 
 - `review-focus` posts the review for the commit it checked (`commit_id`, through `gh api`, since `gh pr review` can't name one). An unnamed review applies to whatever the head is by then.
 - `review-focus` fetches again before its final check, so the check sees the current base.
 
+**Round 12 (5 findings: 4 fixed, 1 declined).**
+
+- The check runs before every push, the first included. In a repo where CI runs on push, review happens before the first push, so a review fix could reach that push unchecked.
+- `review-focus` runs its final check only where step 2 ran one. For a trivial PR it rereads the diff, and a change request needs no recheck.
+- `ship` no longer suggests auto-merge: a head pushed while it waits can merge without the check.
+- Step 7 accepts `Docs: skipped at the user's instruction` as it stands, rather than demanding a check there are no docs for.
+- Declined: recording the base commit, to notice the base branch moving while the user weighs the guide. If the base takes in some of the PR's commits, the diff only shrinks. The final check runs on the current diff, and a different result already makes `review-focus` ask again. Tracking the base commit would re-ask every time `main` moves, which is the bookkeeping the owner chose to drop after round 10.
+
+The eleventh docs ↔ code check noted that `review-focus` never said how to get the base commit for the diff range. It now gives `git rev-parse origin/<baseRefName>`.
+
 **The owner's rulings.** Four decisions were put to the owner: blocking when a needed doc is missing, decisions inline with links for detail, extending `review-focus` rather than writing a new skill, and leaving `nuclear-code-review` and `adversarial-review` alone. Their answer: "1 keep it, 2 ok, 3 ok, 4 ok."
 
 **Port due.** delivery-guardrail carries spin-offs of all three (`ship`, `grill-into-design`, `review-focus`), so each should adapt this for Concord: Azure DevOps PR links and `az repos pr` in place of `gh`. That is for a session in that repository.

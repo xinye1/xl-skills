@@ -135,8 +135,7 @@ No gap goes unlisted. An unlisted gap is exactly where approving the docs stops 
 
 **When it runs.** A verdict says what was true of the PR when it ran. Plenty can change after that without moving anything a reviewer would notice: a new commit, a retargeted PR, a base branch that takes in some of the PR's commits, an edited description, a newly linked doc. Don't track them. Run the check again on the PR as it is, right before each decision that depends on it:
 
-- before the first push (Step 3c);
-- on every later push to the PR, so the verdict in the description is never older than its head;
+- before every push, the first included (Step 3c, then again after any fix, such as a review fix made before the first push), so the verdict in the description is never older than its head;
 - at Step 7, right before merging;
 - in `review-focus`, right before the reviewer's approval is posted.
 
