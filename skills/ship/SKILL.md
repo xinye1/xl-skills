@@ -292,11 +292,13 @@ When the review verdict is `APPROVE` (Step 4) **and** all CI checks are green **
 
 If a teammate has already approved and the description then changes, tell them what changed, because they approved the earlier version.
 
+Merge the head the check ran on, so a push that lands during the check can't merge unchecked. If the head has moved, GitHub refuses, and the gate runs again:
+
 ```bash
-gh pr merge <pr> --merge --delete-branch
+gh pr merge <pr> --merge --delete-branch --match-head-commit <checked-sha>
 ```
 
-For pre-merge-gated CI you can let GitHub merge the moment the gate goes green: `gh pr merge <pr> --auto --merge --delete-branch` (needs the repo's *Allow auto-merge* setting; otherwise merge manually once Step 6 is green).
+For pre-merge-gated CI you can let GitHub merge the moment the gate goes green: `gh pr merge <pr> --auto --merge --delete-branch --match-head-commit <checked-sha>` (needs the repo's *Allow auto-merge* setting; otherwise merge manually once Step 6 is green).
 
 The `--delete-branch` flag removes the remote branch. Step 8 removes the local branch and any worktree.
 

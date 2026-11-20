@@ -40,7 +40,11 @@ The user is the second developer, approving a PR they won't read line by line. T
    - deep-dive pointers.
 
    Add a fifth part, **where the code and the docs part ways**, from the check: differences the description lists, and any it doesn't. An unlisted difference is the one place the user has to read code. Point them at the file and line.
-4. **The user decides.** Draft the review the way they rule. Approval means the decisions are agreed and the differences accepted. A change request names the decision or difference it's about. Post it only when they say so. Right before posting, read the PR again (`gh pr view`, as in step 1) and run the check once more. If the head, base or description changed, or the check's result differs from the one the guide showed, update the guide and ask again. Then post with the one command that matches their ruling: `gh pr review <pr> --approve --body-file <file>` to approve, or `gh pr review <pr> --request-changes --body-file <file>` to ask for changes.
+4. **The user decides.** Draft the review the way they rule. Approval means the decisions are agreed and the differences accepted. A change request names the decision or difference it's about. Post it only when they say so. Right before posting, fetch and read the PR again (as in step 1) and run the check once more on what you fetched. If the head, base or description changed, or the check's result differs from the one the guide showed, update the guide and ask again. The user ruled on the description they read, so an edited one needs their eyes again even when the check still passes. Then post for the commit you just checked, so a push that lands meanwhile isn't approved unseen. `gh pr review` can't name a commit, so use the API, with `<event>` `APPROVE` or `REQUEST_CHANGES` to match their ruling:
+
+   ```bash
+   gh api repos/{owner}/{repo}/pulls/<pr>/reviews -f commit_id=<checked-sha> -f event=<event> -F body=@<file>
+   ```
 
 The guide stays within the PR's own decisions. Correctness bugs and structure are other reviews (`/code-review`, `nuclear-code-review`). If the user wants one, offer it. Don't fold it in.
 
