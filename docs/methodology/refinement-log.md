@@ -56,7 +56,7 @@ Newest first. Each entry records what prompted the change, the evidence, what ch
 
 **Found while shipping it.** `cr_review.sh` failed on this PR's first run. The evidence folder for a new branch didn't exist yet, and the wrapper reported "the CLI failed (exit 1)" though nothing had run. Every new branch whose evidence folder doesn't exist yet hits this, a normal-use defect. The wrapper now creates the folder, and a test covers it.
 
-**Review (CodeRabbit CLI, under the new limit).** Round 1, 1 finding, fixed: Step 7 still required `APPROVE`, so a review that stopped under the limit with only declined findings could never pass the gate. Step 7 now also accepts a review stopped under Step 4's limit with no normal-use defect open, and each declined finding listed in `## Review`.
+**Review (CodeRabbit CLI, under the new limit).** Round 1, 1 finding, fixed: Step 7 still required `APPROVE`, so a review that stopped under the limit with only declined findings could never pass the gate. Step 7 now also accepts a review stopped under Step 4's limit with no normal-use defect open, and each declined finding listed in `## Review`. Round 2, 1 finding, declined: compare the base commit as well as its name before `review-focus` posts. The three-dot diff runs from the merge base, so the base moving forward doesn't change it. The narrow case where it does was already declined on #52 and is filed in [#51](https://github.com/xinye1/xl-skills/issues/51). The review stopped there, at two rounds.
 
 ## 2026-11-19 — the PR description is written for a reviewer who approves the docs, not the code
 
