@@ -29,6 +29,7 @@ if [ $# -lt 1 ]; then
 fi
 out=$1
 shift
+mkdir -p "$(dirname "$out")" || { echo "cr_review: cannot create the folder for $out" >&2; exit 1; }
 max_wait=${CR_MAX_WAIT_SEC:-10800}
 review_timeout=${CR_REVIEW_TIMEOUT_SEC:-1800}
 margin=${CR_WAIT_MARGIN_SEC:-30}

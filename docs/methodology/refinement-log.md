@@ -54,6 +54,8 @@ Newest first. Each entry records what prompted the change, the evidence, what ch
 - *A cap without the trim.* The cap stops new weight but keeps the old. Every session that loads `ship` keeps paying for rules a capped loop would never have added.
 - *Cutting the docs ↔ code check entirely.* It is what makes "approve the docs, approve the PR" hold. Only its extra reruns were cut.
 
+**Found while shipping it.** `cr_review.sh` failed on this PR's first run. The evidence folder for a new branch didn't exist yet, and the wrapper reported "the CLI failed (exit 1)" though nothing had run. Every new branch whose evidence folder doesn't exist yet hits this, a normal-use defect. The wrapper now creates the folder, and a test covers it.
+
 ## 2026-11-19 — the PR description is written for a reviewer who approves the docs, not the code
 
 **Trigger.** The user, who runs a team doing agentic delivery, described how PR review works there. One developer raises a PR and another approves it. The second "is impossible … to read all the code, so they are expected to understand enough to make decisions on approval or suggesting changes." So the PR body should carry, inline or by link, the docs written during the work: "the feature description, design, intent, decisions, answer to grilling questions". Their premise: "Assuming that the code changes have been done relatively faithfully based on the documentation, approving the documentation … should imply approval of the PR itself." A second reader is an agent reviewing the PR as a whole.
