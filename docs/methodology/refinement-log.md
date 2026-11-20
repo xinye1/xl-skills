@@ -142,7 +142,7 @@ So the check now runs again on the PR as it is, right before each decision that 
 - `review-focus` posts the review for the commit it checked (`commit_id`, through `gh api`, since `gh pr review` can't name one). An unnamed review applies to whatever the head is by then.
 - `review-focus` fetches again before its final check, so the check sees the current base.
 
-**Round 12 (5 findings: 4 fixed, 1 declined).**
+**Round 12 (6 findings: 4 fixed, 1 declined, 1 filed).** The sixth, "recheck the base before merging", was missed when the output was first read (it was cut off). It is the same race as round 13's first finding, and is filed with those in [#51](https://github.com/xinye1/xl-skills/issues/51).
 
 - The check runs before every push, the first included. In a repo where CI runs on push, review happens before the first push, so a review fix could reach that push unchecked.
 - `review-focus` runs its final check only where step 2 ran one. For a trivial PR it rereads the diff, and a change request needs no recheck.
