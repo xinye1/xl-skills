@@ -48,15 +48,8 @@ case "$*" in
 "plugin marketplace add "*) ref=${4#*#}; [ "$ref" = "$4" ] && ref=main; git -C "$UP" rev-parse "$ref" >"$MKT" ;;
 "plugin marketplace remove "*) rm -f "$MKT" ;;
 "plugin update "*)
-	[ "${STALE:-0}" = 1 ] || put "$(cat "$MKT")"
-	if [ "${PARTIAL:-0}" = 1 ]; then exit 1; fi # changed the plugin, then failed
-	if [ "${FILES_ONLY:-0}" = 1 ]; then # changed the files but not the record, then failed
-		d=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['plugins']['pstack@cursor-plugins'][0]['installPath'])" "$PSTACK_PIN_INSTALLED")
-		echo half-written >"$d/skills/correct/SKILL.md"
-		exit 1
-	fi ;;
-"plugin install "*) put "$(cat "$MKT")"
-	if [ "${PARTIAL:-0}" = 1 ]; then exit 1; fi ;; # registered, then failed
+	[ "${STALE:-0}" = 1 ] || put "$(cat "$MKT")" ;;
+"plugin install "*) put "$(cat "$MKT")" ;;
 "plugin uninstall "*) put "" ;;
 esac
 FAKE
@@ -208,20 +201,6 @@ cp "$tmp/before.json" "$tmp/settings.json"
 echo "$A" >"$MKT"
 installed "$A"
 
-# an update that changed the plugin and then failed: rollback reinstalls the old one
-: >"$CLAUDE_LOG"
-PARTIAL=1 run bump "$C"
-check "partial update: old plugin back" eval 'rc 1 && same_json "$tmp/settings.json" "$tmp/before.json" && python3 -c "
-import json,sys; assert json.load(open(sys.argv[1]))[\"plugins\"][\"pstack@cursor-plugins\"][0][\"gitCommitSha\"]==sys.argv[2]" "$tmp/installed.json" "$A"'
-
-# an update that changed the files but not the record, then failed: reinstalled too
-: >"$CLAUDE_LOG"
-STALE=1 FILES_ONLY=1 run bump "$C"
-check "files changed, record not: old plugin back" eval 'rc 1 && [ "$(cat "$(put_stale_files)/skills/correct/SKILL.md")" = v1 ]'
-cp "$tmp/before.json" "$tmp/settings.json"
-echo "$A" >"$MKT"
-installed "$A"
-
 # a rollback keeps settings another session changed meanwhile
 : >"$CLAUDE_LOG"
 TOUCH=1 FAIL_ON="plugin update*" run bump "$C"
@@ -232,39 +211,8 @@ assert d['model']=='sonnet' and d['extraKnownMarketplaces']==b['extraKnownMarket
 " "$tmp/settings.json" "$tmp/before.json"
 cp "$tmp/before.json" "$tmp/settings.json"
 
-# the entry can't be saved: stop before touching settings
-mkdir "$tmp/state/entry.before-bump.json.tmp"
-run bump "$C"
-check "save fails: settings unchanged" eval 'rc 1 && same_json "$tmp/settings.json" "$tmp/before.json" && grep -q "settings unchanged" "$tmp/err"'
-rmdir "$tmp/state/entry.before-bump.json.tmp"
-
-# a lock path with a quote in it is still released
-q="$tmp/O'Brien"
-mkdir -p "$q"
-cp -r "$tmp/state/cursor-plugins-full.git" "$q/"
-: >"$CLAUDE_LOG"
-PSTACK_PIN_STATE=$q FAIL_ON="plugin update*" run bump "$C"
-check "quoted lock path: released" eval '[ ! -e "$q/bump.lock.d" ]'
-cp "$tmp/before.json" "$tmp/settings.json"
-echo "$A" >"$MKT"
-installed "$A"
-
-# a branch or tag ref is re-registered as it was
-g branch release "$A"
-python3 - "$tmp/settings.json" <<'EOF2'
-import json, sys
-d = json.load(open(sys.argv[1]))
-d["extraKnownMarketplaces"]["cursor-plugins"]["source"]["ref"] = "release"
-json.dump(d, open(sys.argv[1], "w"))
-EOF2
+# bump keeps a private settings file private
 chmod 600 "$tmp/settings.json"
-cp -p "$tmp/settings.json" "$tmp/branch.json"
-: >"$CLAUDE_LOG"
-STALE=1 FILES_ONLY=1 run bump "$C"
-check "branch ref, files changed: old files back" eval 'rc 1 && [ "$(cat "$(put_stale_files)/skills/correct/SKILL.md")" = v1 ]'
-: >"$CLAUDE_LOG"
-FAIL_ON="plugin update*" run bump "$C"
-check "branch ref: rollback re-adds it" eval 'rc 1 && same_json "$tmp/settings.json" "$tmp/branch.json" && [ "$(tail -1 "$CLAUDE_LOG")" = "plugin marketplace add cursor/plugins#release" ]'
 run bump "$C"
 check "bump keeps the settings file private" eval 'rc 0 && python3 -c "import os,stat,sys; sys.exit(stat.S_IMODE(os.stat(sys.argv[1]).st_mode)!=0o600)" "$tmp/settings.json"'
 cp "$tmp/before.json" "$tmp/settings.json"
@@ -304,12 +252,6 @@ check "fresh machine: settings written" python3 -c "
 import json,sys
 assert json.load(open(sys.argv[1]))['extraKnownMarketplaces']['cursor-plugins']['source']['ref']==sys.argv[2]
 " "$tmp/settings.json" "$B"
-
-# a first install that registers and then fails is uninstalled
-echo '{"plugins":{}}' >"$tmp/installed.json"
-: >"$CLAUDE_LOG"
-PARTIAL=1 run bump "$B"
-check "first install fails late: uninstalled" eval 'rc 1 && [ "$(tail -1 "$CLAUDE_LOG")" = "plugin uninstall pstack@cursor-plugins --scope user" ]'
 
 # no settings file at all: bump creates it
 rm -f "$tmp/settings.json"

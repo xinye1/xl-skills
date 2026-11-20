@@ -75,8 +75,7 @@ Worth a look if you read code: <one to three files or hunks where the risk conce
 
 ## Docs ↔ code
 <COVERED | COVERED, with the differences below | not run (trivial: <reason>) |
-skipped at the user's instruction (<reason>)> at <short sha> against <base>, docs checked: <repo paths>,
-by a fresh agent
+skipped at the user's instruction (<reason>)> at <short sha> against <base>, by a fresh agent
 - Differs from the docs: <what, why, and the follow-up issue>, or "none"
 - Done but not in the docs: "none" (each one found was written into a doc: <which>)
 - In the docs but not in this PR: <what, and where it will happen>, or "none"
@@ -102,7 +101,7 @@ Closes #<issue>
 
 ## Links
 
-- **Link to the head commit, not the branch.** Merging deletes the branch, and a link to it breaks. A link to a commit keeps working. Get one with `gh browse <path> --commit=$(git rev-parse HEAD) --no-browser`. Use the full SHA: a short one can become ambiguous as the repo grows, and add `#<heading-anchor>` to point at a section.
+- **Link to the head commit, not the branch.** Merging deletes the branch, and a link to it breaks. A link to a commit keeps working. Get one with `gh browse <path> --commit=$(git rev-parse HEAD) --no-browser`. Add `#<heading-anchor>` to point at a section.
 - **Give the repo path too**, in backticks beside the link. An agent that has the repo checked out can open the file without a network call.
 - **Refresh the description when the docs change**, or when the docs ↔ code check runs again. Edit only your own sections. Other tools append to the body: the CodeRabbit app adds a block that starts `<!-- This is an auto-generated comment`. So read the current body (`gh pr view <pr> --json body -q .body`), replace your sections, keep the rest, and write it back with `gh pr edit <pr> --body-file <file>`.
 
@@ -131,12 +130,6 @@ It reads only and edits nothing.
 
 No gap goes unlisted. An unlisted gap is exactly where approving the docs stops meaning approving the code.
 
-**Run it again once the gaps are resolved.** An updated doc or a code fix hasn't been checked yet. Commit the fixes first, so the second run checks what the PR will carry. Give the second run the same brief, and record its verdict. The second run sees only the docs and the diff, so it reports a deliberate difference again, and may say `GAPS`. If every gap it reports is already listed under "Differs from the docs", the verdict is `COVERED, with the differences below`. Keep the checker's own report with the evidence. Two rounds is the limit. A gap still open after the second round goes to the user, rather than a third round.
+**Run it again once the gaps are resolved.** An updated doc or a code fix hasn't been checked yet. Commit the fixes first, so the second run checks what the PR will carry. Give the second run the same brief, and record its verdict. The second run sees only the docs and the diff, so it reports a deliberate difference again, and may say `GAPS`. Gaps already listed under "Differs from the docs" don't count: the verdict is then `COVERED, with the differences below`. Two rounds is the limit. A gap still open after the second round goes to the user, rather than a third round.
 
-**When it runs.** A verdict says what was true of the PR when it ran. Plenty can change after that without moving anything a reviewer would notice: a new commit, a retargeted PR, a base branch that takes in some of the PR's commits, an edited description, a newly linked doc. Don't track them. Run the check again on the PR as it is, right before each decision that depends on it:
-
-- before every push, the first included (Step 3c, then again after any fix, such as a review fix made before the first push), so the verdict in the description is never older than its head;
-- at Step 7, right before merging;
-- in `review-focus`, right before the reviewer's approval is posted.
-
-Each run is one short subagent, far cheaper than an approval that no longer means what it says. Each run's verdict replaces the one in the description. A gap a later run finds is resolved as above, which means a commit, a push, and the check again on that.
+**When it runs.** Before the first push (Step 3c), and again right before merging (Step 7), on the PR as it is then. A verdict says only what was true when it ran. `review-focus` runs its own check for the reviewer.

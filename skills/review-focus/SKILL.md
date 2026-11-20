@@ -40,7 +40,7 @@ The user is the second developer, approving a PR they won't read line by line. T
    - deep-dive pointers.
 
    Add a fifth part, **where the code and the docs part ways**, from the check: differences the description lists, and any it doesn't. An unlisted difference is the one place the user has to read code. Point them at the file and line.
-4. **The user decides.** Draft the review the way they rule. Approval means the decisions are agreed and the differences accepted. A change request names the decision or difference it's about. Post it only when they say so. Right before posting an approval, fetch and read the PR again (as in step 1). Then run the check once more on what you fetched, if step 2 ran one; for a trivial PR, read the diff again and confirm it is still trivial. If the head, base or description changed, or the result differs from the one the guide showed, update the guide and ask again. A change request needs none of this. The user ruled on the description they read, so an edited one needs their eyes again even when the check still passes. Then post for the commit you just checked, so a push that lands meanwhile isn't approved unseen. `gh pr review` can't name a commit, so use the API, with `<event>` `APPROVE` or `REQUEST_CHANGES` to match their ruling:
+4. **The user decides.** Draft the review the way they rule. Approval means the decisions are agreed and the differences accepted. A change request names the decision or difference it's about. Post it only when they say so. Right before posting an approval, fetch and read the PR again (as in step 1). If the head, base or description changed, run step 2 again (the check, or for a trivial PR a fresh look at the diff), update the guide and ask again. A change request needs none of this. The user ruled on the description they read, so an edited one needs their eyes again even when the check still passes. Then post for the commit you just checked, so a push that lands meanwhile isn't approved unseen. `gh pr review` can't name a commit, so use the API, with `<event>` `APPROVE` or `REQUEST_CHANGES` to match their ruling:
 
    ```bash
    gh api repos/{owner}/{repo}/pulls/<pr>/reviews -f commit_id=<checked-sha> -f event=<event> -F body=@<file>
@@ -58,7 +58,7 @@ The guide stays within the PR's own decisions. Correctness bugs and structure ar
 | Ranking by document order | Puts naming bikesheds ahead of the irreversible money decision. |
 | Implementation-level review points | The user explicitly doesn't review at that level; those belong to code review / subagent review. |
 | Unnumbered points | Breaks the user's "1 yes, 2 agree" reply pattern. |
-| Taking a PR description's "the code follows the docs" on trust | It's the author's claim about the PR as it was when they ran the check. The PR may have moved since. Run the check yourself, and again right before posting. |
+| Taking a PR description's "the code follows the docs" on trust | It's the author's claim about the PR as it was when they ran the check. The PR may have moved since. Run the check yourself. |
 
 ## When NOT to use
 
