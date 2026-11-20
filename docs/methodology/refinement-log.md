@@ -30,13 +30,13 @@ Newest first. Each entry records what prompted the change, the evidence, what ch
   - It sizes the change and finds the docs.
   - It stops and offers to write a doc when the change needs one and has none. Only the user's explicit word skips this, and the skip is recorded.
   - It sends a fresh subagent with the diff range and the doc paths only, never a summary. The subagent reports decisions not implemented as written, and changes the docs don't cover.
-  - Every gap is resolved before review is requested: update a stale doc, fix the code, or list the difference. The verdict covers the commit it ran on, like Step 3b's. A later fix that changes behaviour or structure means running the check again before the next push and before merging. A fix to formatting, comments or tests only doesn't.
+  - Every gap is resolved before review is requested: update a stale doc, fix the code, or list the difference. The check runs again on the PR as it is at each point that depends on it: every later push, right before merging, and in `review-focus` right before an approval is posted. (Until round 10 it tracked what could make a verdict stale instead; see "After round 10" below.)
 - `ship` Step 5 builds the body from the template through `--body-file`. When it refreshes the body later, it keeps blocks other tools append (CodeRabbit's summary). With `--body-file`, gh no longer applies a repo's `.github/pull_request_template.md` by itself, so the sections are fitted into the template's headings.
-- `ship` Step 7 needs a docs ↔ code verdict that covers the head. If the body changes after a teammate approved, they are told what changed. The summary table gains a column, and State A2 enters through 3b and 3c.
+- `ship` Step 7 needs a `COVERED` docs ↔ code verdict from a check run right before merging. If the body changes after a teammate approved, they are told what changed. The summary table gains a column, and State A2 enters through 3b and 3c.
 - `grill-into-design` records each answer in the spec as it lands. The spec leads with a short intent, keeps a grill record (quoting the user where they overrode the recommendation), and has a "Changes during implementation" section, which the docs ↔ code check feeds.
 - `review-focus` covers the reviewer's side. Asked to review a teammate's PR, it:
   - treats the description as the author's claims;
-  - checks that the docs ↔ code verdict covers the head, and runs the check itself if not;
+  - runs the docs ↔ code check itself on the PR as it is, whatever verdict the description carries, and again right before posting;
   - gives the usual numbered guide, plus where the code and the docs part ways;
   - posts the review only on the user's word;
   - offers a correctness or structure review (`/code-review`, `nuclear-code-review`) when the user wants one, rather than folding it into the guide.
@@ -131,6 +131,10 @@ The eighth docs ↔ code check noted that the log called `## Review` an existing
 - The verdict line names the docs it checked. If `## Docs` later links a doc the check didn't read, the verdict is stale in `ship` and in `review-focus`.
 - When every gap the second run reports is already a listed deliberate difference, the verdict is `COVERED, with the differences below`, and the checker's own report is kept with the evidence. Round 8 had said such a gap isn't open, but not what verdict to record, so `review-focus` would have rerun the check on the `GAPS` it saw.
 - With a repo PR template, the required headings stay and the template's headings are added after them. Fitting the sections into the template's headings could drop the ones `ship` and `review-focus` look for by name.
+
+**After round 10: one rule in place of the freshness bookkeeping.** Most findings in rounds 3 and 5 to 10 were of one kind. Something about the PR changed after the check ran, and the old verdict was trusted anyway: a new commit, a retarget, a base that took in the PR's commits, an edited description, a newly linked doc, a promised behaviour reworded. Each fix added one more thing to record and compare: the merge base, a hash of the checked sections, a hash of the whole description, the docs checked. Each addition opened the next edge case. The owner was asked how to close it out, with three options: keep looping until CodeRabbit came back clean, take one more round and file the rest as a follow-up, or simplify. They chose "Simplify, then merge".
+
+So the check now runs again on the PR as it is, right before each decision that depends on it: every push, the merge gate, and in `review-focus`, right before an approval is posted. `review-focus` no longer reads the author's verdict as evidence. It runs its own. The hashes and the merge base are gone, and the verdict line keeps the head, the base and the docs checked, as information for the reader. A run costs one short `sonnet` subagent, about 40 seconds on this PR. The lesson: when review keeps finding new ways a cached result goes stale, stop caching it.
 
 **The owner's rulings.** Four decisions were put to the owner: blocking when a needed doc is missing, decisions inline with links for detail, extending `review-focus` rather than writing a new skill, and leaving `nuclear-code-review` and `adversarial-review` alone. Their answer: "1 keep it, 2 ok, 3 ok, 4 ok."
 

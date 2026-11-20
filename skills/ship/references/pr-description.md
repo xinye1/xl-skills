@@ -75,8 +75,8 @@ Worth a look if you read code: <one to three files or hunks where the risk conce
 
 ## Docs ↔ code
 <COVERED | COVERED, with the differences below | not run (trivial: <reason>) |
-skipped at the user's instruction (<reason>)> at <short sha> against <base> (merge base <short sha>),
-docs checked: <repo paths>[; description as the doc, sections <hash>], by a fresh agent
+skipped at the user's instruction (<reason>)> at <short sha> against <base>, docs checked: <repo paths>,
+by a fresh agent
 - Differs from the docs: <what, why, and the follow-up issue>, or "none"
 - Done but not in the docs: "none" (each one found was written into a doc: <which>)
 - In the docs but not in this PR: <what, and where it will happen>, or "none"
@@ -133,9 +133,11 @@ No gap goes unlisted. An unlisted gap is exactly where approving the docs stops 
 
 **Run it again once the gaps are resolved.** An updated doc or a code fix hasn't been checked yet. Commit the fixes first, so the second run checks what the PR will carry. Give the second run the same brief, and record its verdict. The second run sees only the docs and the diff, so it reports a deliberate difference again, and may say `GAPS`. If every gap it reports is already listed under "Differs from the docs", the verdict is `COVERED, with the differences below`. Keep the checker's own report with the evidence. Two rounds is the limit. A gap still open after the second round goes to the user, rather than a third round.
 
-**The verdict covers the commit it ran on, and the diff it was compared with.** So the verdict line names the head, the base, the merge base (`git merge-base origin/<base> HEAD`) and the docs checked. The diff can change while the head stays the same: when the PR is retargeted, or when the base branch takes in some of the PR's commits. If the base or merge base differs from the PR's current one, or `## Docs` now links a doc the check didn't read, run the check again. Also run it again before the next push and before merging in either case:
+**When it runs.** A verdict says what was true of the PR when it ran. Plenty can change after that without moving anything a reviewer would notice: a new commit, a retargeted PR, a base branch that takes in some of the PR's commits, an edited description, a newly linked doc. Don't track them. Run the check again on the PR as it is, right before each decision that depends on it:
 
-- a later fix from review or CI changes behaviour or structure;
-- a doc it covered changes a decision or a promised behaviour ("delete inactive accounts" becoming "delete all accounts" is one, with no decision in sight). When the description is the doc, editing its `## Why` or `## For the reviewer` doesn't move the head commit, so a verdict that names the commit can't show the edit. So the verdict line also records which text was checked: `description as the doc, sections <hash>`. The hash is the first 12 characters of the `sha256sum` of the file of checked sections the checker was given. Before merging, hash the current sections the same way. If the hash differs and a decision or a promised behaviour changed, run the check again.
+- before the first push (Step 3c);
+- on every later push to the PR, so the verdict in the description is never older than its head;
+- at Step 7, right before merging;
+- in `review-focus`, right before the reviewer's approval is posted.
 
-Fixes to formatting, comments or tests only don't need it, and neither do doc edits that change only wording. Check with `git diff --stat <checked-sha>..HEAD`.
+Each run is one short subagent, far cheaper than an approval that no longer means what it says. Each run's verdict replaces the one in the description. A gap a later run finds is resolved as above, which means a commit, a push, and the check again on that.

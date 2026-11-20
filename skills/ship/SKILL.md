@@ -33,7 +33,7 @@ Classify and announce the detected state in one line (e.g. "Resuming at merge fo
 |---|---|---|
 | **A. Uncommitted changes** | dirty tree (`git status --porcelain` non-empty), no open PR for current branch | Step 1 |
 | **A2. Committed, not pushed** | clean tree on a feature branch with no open PR AND ((commits-ahead-of-upstream > 0) OR (`no-upstream` AND commits-beyond-base > 0)) | Steps 3b and 3c, then Step 4 |
-| **A3. Iteration on existing PR** | dirty tree OR commits-ahead-of-upstream > 0, on a branch whose own PR is currently open | Commit any dirty work (Step 2 logic — reuse the existing branch). If the unpushed commits change behaviour or structure, or a decision or promised behaviour in a doc, run Steps 3b and 3c on them first. Then push (Step 5 push only — PR already exists), refresh the body, and re-evaluate as B / B2 / B3 / B4 |
+| **A3. Iteration on existing PR** | dirty tree OR commits-ahead-of-upstream > 0, on a branch whose own PR is currently open | Commit any dirty work (Step 2 logic — reuse the existing branch). Run Step 3b on the unpushed commits if they change behaviour, and Step 3c's check on every push. Then push (Step 5 push only — PR already exists), put the new verdict in the body, and re-evaluate as B / B2 / B3 / B4 |
 | **B. PR open, awaiting review** | clean tree, in sync with remote, open PR, `reviewDecision` is `null` or `REVIEW_REQUIRED` | Step 4 |
 | **B2. PR open, changes requested** | clean + in sync, open PR with `reviewDecision: CHANGES_REQUESTED` | Step 4 — fix issues first, then re-review |
 | **B3. PR approved, CI not green** | clean + in sync, open PR with `reviewDecision: APPROVED`, at least one check pending or failing | Step 6 |
@@ -170,7 +170,7 @@ A teammate approves the PR. They decide from the description, not by reading all
 1. **Size it.** A trivial change, such as a typo, a dependency bump with no change in behaviour, or a one-line fix whose commit states the cause, gets `Docs: none needed (<reason>)` and skips to Step 4. Everything else continues.
 2. **Find the docs.** These are the specs, plans, ADRs, grill records, review logs and method notes this branch adds, changes or follows. Some decisions are written down only where the reviewer can't see them: in the decision log on this machine, or only in chat. Write those into the repo docs now, as part of this PR.
 3. **A change that needs a doc and has none stops here.** That is a change with a decision a reviewer should weigh. Ask: "This PR makes decisions a reviewer should weigh (<list>), and no doc records them. Write one now from this session?" On a yes, write it in the repo's docs convention and commit it on this branch. On a no, shipping stays blocked unless the user explicitly says to ship without docs. Then the description says `Docs: skipped at the user's instruction (<reason>)`. When the whole story fits in the description, as with a bug's diagnosis or a small change's one decision, the description is the doc.
-4. **Check that the code follows the docs.** Send a fresh subagent with the diff range and the doc paths only (the brief is in the reference). Resolve every gap it finds before review is requested. Update a doc that is out of date, fix code that strays from the doc, or list a deliberate difference with its reason. Commit the fixes, then run the check once more on that commit. No gap stays unlisted. Like the Step 3b verdict, this one covers the commit it ran on. A code fix made here, after review or CI has already run, goes back through them.
+4. **Check that the code follows the docs.** Send a fresh subagent with the diff range and the doc paths only (the brief is in the reference). Resolve every gap it finds before review is requested. Update a doc that is out of date, fix code that strays from the doc, or list a deliberate difference with its reason. Commit the fixes, then run the check once more on that commit. No gap stays unlisted. A verdict says only what was true of the PR when it ran, so the check runs again on every later push and right before merging (the reference's "When it runs"). A code fix made here, after review or CI has already run, goes back through them.
 
 ## Step 4: Independent code review
 
@@ -285,14 +285,12 @@ On failure: inspect logs (`gh run view --log-failed` for the failing run), fix t
 
 ## Step 7: Merge
 
-When the review verdict is `APPROVE` (Step 4) **and** all CI checks are green **and** the PR carries a Step 3b verdict of `PASS` or `PASS+NOTES` that covers its head (or a reasoned `not applicable`, or `skipped at the user's instruction`) **and** a Step 3c docs ↔ code verdict that covers its head, with every gap listed (or `not run (trivial: …)`, or `skipped at the user's instruction`). A PR resumed from Step 0 (States A2, B to B4) with no verdict in its body, or one older than a behavior-bearing change, goes through Step 3b first. A PR goes through Step 3c first, and gets its body refreshed, in any of these cases:
+When the review verdict is `APPROVE` (Step 4) **and** all CI checks are green **and** the PR carries a Step 3b verdict of `PASS` or `PASS+NOTES` that covers its head (or a reasoned `not applicable`, or `skipped at the user's instruction`) **and** a docs ↔ code verdict of `COVERED` (with every difference listed) from a check run right before merging, on the PR as it is now (or `not run (trivial: …)`, or `skipped at the user's instruction`). A PR resumed from Step 0 (States A2, B to B4) with no verdict in its body, or one older than a behavior-bearing change, goes through Step 3b first. Then:
 
-- its body lacks the reviewer sections (a trivial PR needs only `## Why` and `Docs: none needed (<reason>)`);
-- its body has no docs ↔ code verdict (a trivial PR's `Docs: none needed (<reason>)` stands in for one);
-- its docs ↔ code verdict is older than a change to behaviour or structure, or names a base or merge base other than the PR's current one, or didn't read a doc `## Docs` now links;
-- a decision or promised behaviour in a doc the verdict covered changed after it ran, including the description's own `## Why` or `## For the reviewer` when the description is the doc.
+- If its body lacks the reviewer sections, it goes through Step 3c first. A trivial PR needs only `## Why` and `Docs: none needed (<reason>)`, which also stands in for the check.
+- Otherwise, run the docs ↔ code check (the brief is in the reference) on the PR's current head, base and docs, and put its verdict in the body. Resolve a gap it finds as Step 3c says. On an open PR the fixes are pushed before the body is refreshed, and like any new commit they go back through Step 4, and through Step 6 when CI runs. Then the check runs again.
 
-On a PR that's already open, the fixes Step 3c commits are pushed before the body is refreshed, so the verdict names a commit the PR carries. Like any new commit, they go back through Step 4, and through Step 6 when CI runs. If a teammate has already approved and the description then changes, tell them what changed, because they approved the earlier version.
+If a teammate has already approved and the description then changes, tell them what changed, because they approved the earlier version.
 
 ```bash
 gh pr merge <pr> --merge --delete-branch
@@ -355,4 +353,4 @@ The PR description (Steps 3c and 5) draws on, and is read through, these xl-skil
 - `grill-into-design` writes the spec's intent and grill record, which the description lifts.
 - `adversarial-review` leaves a review log beside the spec, which the description links.
 - `handover` and `execute-phased-plan` keep the decision log, whose reviewer-relevant rows Step 3c copies into the repo docs.
-- On the reviewer's side, `review-focus` reads the PR: it turns the description into a numbered guide, and checks its docs ↔ code verdict still covers the head.
+- On the reviewer's side, `review-focus` reads the PR: it runs the docs ↔ code check itself on the PR as it is, and turns the description into a numbered guide.
