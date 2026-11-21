@@ -2,11 +2,26 @@
 
 ## This repo is upstream of the Concord delivery kit
 
-The Concord project's delivery kit (delivery-guardrail) copies skills from here and adapts them to
-the project. The user, 2026-11-17: "for future instances we should align both and make sure this repo
+The Concord project's delivery kit (delivery-guardrail) installs these skills as written: its plugin
+marketplace lists this repository at a pinned commit, as the plugin `xl-skills`, and its team rules
+and user manual tell the team how to use them (delivery-guardrail D15, 2026-11-21). It keeps no
+copies. A pin moves by a pull request in the kit, after the owner has read what changed here.
+
+Before that (2026-11-04 to 2026-11-21) the kit copied thirteen skills and adapted them, and changes
+were ported by hand. The user, 2026-11-17: "for future instances we should align both and make sure this repo
 updates on the skills on this level (applying all project), and the concord project one adapts
-changes as appropriate for the project." So a change that applies to every project is made here
-first, then ported there by a session working in that repository.
+changes as appropriate for the project." The first half still holds: a change that applies to every
+project is made here. The second half is now done without editing the skills: what is specific to
+Concord lives in the kit as a policy the skills read (`ship`'s "project shipping policy"), not as an
+adapted copy.
+
+What that means for changes here:
+
+- The team runs whatever commit the kit pins, so a change here reaches them only with the next pin
+  bump. A breaking change to how a skill is started or named needs a note for that bump.
+- Skills must not assume GitHub where a project may be on another host. `ship` detects the host and
+  has `references/azure-devops.md`; `review-focus` points to it.
+- Skills must not assume their own bare name: installed as a plugin they are `xl-skills:<name>`.
 
 ## poteto's pstack: installed as a plugin, not copied
 

@@ -2,6 +2,33 @@
 
 Newest first. Each entry records what prompted the change, the evidence, what changed, what was considered and rejected, and what the pass caught along the way.
 
+## 2026-11-21 — `ship` works on Azure DevOps and reads a project's shipping policy
+
+**Trigger.** The Concord delivery kit stopped copying these skills and now installs this repository as a plugin at a pinned commit (delivery-guardrail D15). Its own `ship` stayed, because this one couldn't be used there. The owner, 2026-11-21: "use the original ship skill from xl-skills like any other skills from that source, resolve any issues there may be". Asked how, between teaching this skill, an overlay in the kit, or keeping the kit's own, the owner chose "Teach xl-skills ship (Recommended)": "A PR in xl-skills: ship detects the host (GitHub or Azure DevOps) with an Azure DevOps commands reference, and reads a project's shipping policy when one exists. The kit then deletes guardrail:ship, keeps only a short Concord policy" (delivery-guardrail D16).
+
+**The evidence.** `ship` here (362 lines at `2f4ec03`) was read against the kit's (525 lines). They differ in two separable ways:
+
+- **The host.** Every command is `gh`: PR state from `reviewDecision` and `statusCheckRollup`, CI coupling read from `.github/workflows`, a draft PR as the merge gate, `--body-file`, `--match-head-commit`. On Azure DevOps a description is refused over 4,000 characters, reviews are comment threads, a vote isn't tied to a commit, the PR's `lastMergeSourceCommit` lags a push, and CI is a branch policy. The kit's sessions found each of these the hard way (its refinement log, K44, K47, K50).
+- **The team's rules.** The author is asked to approve before a merge; the review gate is a fixed ladder; a release into `main` and its revert have their own reviewers; verification can never be skipped; every commit names a work item. None of that is about Azure DevOps, and none of it belongs in a general skill.
+
+**What changed.**
+
+- `ship` gains "Before Step 0: the host, and the project's shipping policy". It names the host from the remote and, on Azure DevOps, reads the new `references/azure-devops.md`. It then looks for a policy: a plugin's `ship-policy` skill, `docs/ship-policy.md`, or a "Shipping policy" section in `CLAUDE.md`. The policy wins where it differs and can't be waived from inside a session.
+- `references/azure-devops.md` (new): each step's `az` commands and the host's differences, with the organisation, project and repository taken from the remote. Its last section is for `review-focus`.
+- Step 3b's set-up check accepts pstack from any marketplace (`pstack@…`), and leaves the install and pin alone when the policy says the project supplies pstack. Before, it would have added a second pstack, pinned in the user's settings, beside the one a project installs.
+- The release rule says a project's policy governs a release or a revert, and that Steps 4 to 7 must not be used for one: Step 7's `--delete-branch` would delete the base branch.
+- `review-focus` points to the Azure DevOps commands and to a policy's readiness rule.
+- `docs/upstream.md`: the kit installs these skills rather than copying them, and what that asks of changes here.
+
+**Considered and rejected.**
+
+- *An overlay in the kit that replaces most steps.* No change here, but Claude would reconcile two long documents on the push and merge path, with the second overriding nearly all of the first.
+- *Keeping the kit's own `ship`.* Two `ship` skills in one session, one of them refused by a permission rule, and every improvement here ported by hand: what the kit's redesign set out to end.
+- *A host abstraction with placeholders in `SKILL.md`* (`<pr-create>`, `<pr-merge>`). It would make the GitHub path, the one used most, harder to read. The skill stays written in GitHub's commands, and a second host is a reference file.
+- *Putting the team's rules in the Azure DevOps reference.* They would then apply to every Azure DevOps repository and to no GitHub one, and they are about neither.
+
+**Not tried.** Whether a draft PR on Azure DevOps holds a build-validation run back; the reference says so and tells the reader not to rely on it. The commands were run in the kit's sessions against one organisation (`acuity-dts`); the `az repos pr policy` commands for reading and re-queuing a build were checked against the CLI's help only.
+
 ## 2026-11-20 — the review loop stops after three rounds, and what it over-hardened is cut back
 
 **Trigger.** While PR #52 waited on its fourteenth CodeRabbit run, the owner asked: "why have there be so many sessions with multiple coderabbit review rounds, some of them have as high as 8 rounds. If this is a new practice we started to use explain why, and check what the benefits have been, then check if they are worth the effort, time, token consumption etc., in fact check if these reviews and changes might have "over polished" things."

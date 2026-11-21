@@ -1,6 +1,6 @@
 ---
 name: ship
-description: Use when the user says "ship it", "ship the code", "ship the changes", "let's ship", or asks to push, PR, or merge current work — and when resuming any stage of that journey, committed-not-pushed, PR awaiting review, changes requested, approved-and-ready, or post-merge cleanup. Prefer over ad-hoc git/gh commands for anything on the branch→PR→merge→cleanup path; merge-side counterpart to the superpowers dev-loop skills. Not for resolving stray untracked files — that's git-triage.
+description: Use when the user says "ship it", "ship the code", "ship the changes", "let's ship", "open a PR", "release to main", or asks to push, PR, or merge current work, on GitHub or Azure DevOps — and when resuming any stage of that journey, committed-not-pushed, PR awaiting review, changes requested, approved-and-ready, or post-merge cleanup. Prefer over ad-hoc git, gh or az commands for anything on the branch→PR→merge→cleanup path; merge-side counterpart to the superpowers dev-loop skills. Not for resolving stray untracked files — that's git-triage.
 ---
 
 # Ship — end-to-end code shipping
@@ -8,6 +8,31 @@ description: Use when the user says "ship it", "ship the code", "ship the change
 This skill owns the full path from local changes to merged PRs to clean local state. It hands off cleanly to and from the superpowers dev-loop skills (`using-git-worktrees`, `finishing-a-development-branch`, `requesting-code-review`, `receiving-code-review`, `verification-before-completion`) rather than duplicating or contradicting them.
 
 The workflow is designed so that *any* starting state — uncommitted work, already-pushed PRs, a mix, or nothing to do — lands on the right entry point without the user having to specify.
+
+## Before Step 0: the host, and the project's shipping policy
+
+Two facts about the repository decide how the steps below are carried out. Settle both first, and name them in Step 0's one-line announcement ("Azure DevOps, with the project's policy `guardrail:ship-policy`").
+
+**The host.** Look at the remote (`git remote -v`):
+
+- `github.com`: the commands below are GitHub's and apply as written.
+- `dev.azure.com`, `ssh.dev.azure.com` or `*.visualstudio.com`: Azure DevOps. Read `references/azure-devops.md` (in this skill's folder) now. The steps and gates stay the same; it gives each step's `az` commands and what the host does differently (a 4,000-character description, comment threads instead of reviews, votes that aren't tied to a commit, policies instead of workflow files).
+- Anything else: say which host it is and ask the user how PRs are opened and merged there. Don't guess commands.
+
+**The project's shipping policy.** A team can have its own rules for shipping: who approves, which reviewers gate a push, how a release reaches `main`, whether a gate may ever be skipped, how work is tracked. Look for them in this order and use the first found:
+
+1. a skill named `ship-policy` supplied by a plugin (it shows in the skill list as `<plugin>:ship-policy`): load it with the Skill tool;
+2. `docs/ship-policy.md` in the repository;
+3. a "Shipping policy" section in the repository's `CLAUDE.md`.
+
+Where the policy and this skill differ, the policy wins, and where it is silent this skill applies. A policy typically:
+
+- adds a step (the author is asked to approve before merging; a release procedure; a work item moved);
+- replaces or tightens a gate (its own review ladder in place of Step 4's reviewer; no "skipped at the user's instruction" for verification or docs);
+- fixes a convention (the base branch, the remote's name, merge commits only, an issue or work-item number in every commit);
+- says where a tool comes from (pstack supplied by the project's own plugin set, so Step 3b's set-up check doesn't install or pin it).
+
+A policy can't be waived from inside a session: if the user asks for something it forbids, say what the policy says and stop. No policy found is the normal case for a personal repository: this skill applies as written.
 
 ## Step 0: Detect starting state
 
@@ -135,12 +160,12 @@ Tests passing and a clean review say the code looks right. They are not proof th
 
 **Set-up check: verification is a standard step, like review, so missing tools block.** Check these before anything else in this step. Each missing piece stops shipping until the user confirms setting it up:
 
-1. **pstack is installed** (always, even when the gate doesn't apply to this change): `pstack@cursor-plugins` is a key under `plugins` in `~/.claude/plugins/installed_plugins.json`. If it isn't, stop and ask: "Verification needs pstack (poteto's skills, MIT). Install it now?" On a yes, run `bash <skill dir>/scripts/pstack-pin.sh bump <sha>`, where `<sha>` is the commit under "Pinned at" in xl-skills' `docs/upstream.md`. It pins the `cursor-plugins` marketplace to that commit in `~/.claude/settings.json` and installs pstack there. pstack is pinned, never auto-updated. If it is installed but that marketplace entry has no 40-character `ref`, offer the same `bump` to pin it. If the `SessionStart` hook that runs `pstack-pin.sh check --hook` is missing from `~/.claude/settings.json`, offer to add it (the README has the entry). It is what tells the user when upstream has moved, with what's new, and asks whether to move the pin.
+1. **pstack is installed** (always, even when the gate doesn't apply to this change): a key starting `pstack@` is under `plugins` in `~/.claude/plugins/installed_plugins.json`. When the project's shipping policy says pstack comes with the project's own plugins (the key is then `pstack@<their marketplace>`), that install and its pin are theirs: follow the policy's instructions if it is missing, and skip the rest of this item. If it isn't, stop and ask: "Verification needs pstack (poteto's skills, MIT). Install it now?" On a yes, run `bash <skill dir>/scripts/pstack-pin.sh bump <sha>`, where `<sha>` is the commit under "Pinned at" in xl-skills' `docs/upstream.md`. It pins the `cursor-plugins` marketplace to that commit in `~/.claude/settings.json` and installs pstack there. pstack is pinned, never auto-updated. If it is installed but that marketplace entry has no 40-character `ref`, offer the same `bump` to pin it. If the `SessionStart` hook that runs `pstack-pin.sh check --hook` is missing from `~/.claude/settings.json`, offer to add it (the README has the entry). It is what tells the user when upstream has moved, with what's new, and asks whether to move the pin.
 2. **The repo has a verification skill** (only when the gate applies): `.claude/skills/verify-*/SKILL.md`. If it doesn't, stop and ask: "This repo has no verification skill. Generate one now with pstack's `create-verification-skill`? It interviews the repo, writes the skill and a feature map, and proves it end to end once." On a yes, run the generator (below), then commit its output as its own commit on this branch (`chore(verify): add verify-<app> skill`), so the PR that first needs it carries it. Then run the gate with it.
 
 On a no, shipping stays blocked. The only way past is the user saying explicitly to ship without verification. Then the PR body says `Verification: skipped at the user's instruction (<their reason>)`, and Step 7 accepts that.
 
-**Starting a pstack skill.** pstack's skills can't be started with the Skill tool (they set `disable-model-invocation`; tested). Either the user types `/pstack:<name>`, or, with their go-ahead, you find the plugin's folder (`python3 -c "import json,os;print(json.load(open(os.path.expanduser('~/.claude/plugins/installed_plugins.json')))['plugins']['pstack@cursor-plugins'][0]['installPath'])"`), read its `docs/harness/claude-code.md`, then read `skills/<name>/SKILL.md` and follow it. A plugin installed during this session works this way at once, and its `/pstack:` commands appear from the next session. pstack supplies the generator, `create-verification-skill`, and its upkeep pass, `maintain-verification-skill`, which you suggest when a map has drifted in more than the features one change touches. Don't copy its text into this skill: it changes when the pin moves.
+**Starting a pstack skill.** pstack's skills can't be started with the Skill tool (they set `disable-model-invocation`; tested). Either the user types `/pstack:<name>`, or, with their go-ahead, you find the plugin's folder (`python3 -c "import json,os;p=json.load(open(os.path.expanduser('~/.claude/plugins/installed_plugins.json')))['plugins'];print(next(v[0]['installPath'] for k,v in sorted(p.items()) if k.startswith('pstack@') and v))"`), read its `docs/harness/claude-code.md`, then read `skills/<name>/SKILL.md` and follow it. A plugin installed during this session works this way at once, and its `/pstack:` commands appear from the next session. pstack supplies the generator, `create-verification-skill`, and its upkeep pass, `maintain-verification-skill`, which you suggest when a map has drifted in more than the features one change touches. Don't copy its text into this skill: it changes when the pin moves.
 
 **On the verdict.**
 
@@ -340,7 +365,7 @@ Report a one-table summary of everything shipped this invocation:
 - `dev` (or the default base) accepts direct commits only for genuine hotfixes where the PR-review loop is inappropriate — rare.
 - Never skip hooks (`--no-verify`), bypass signing, or amend after a hook failure.
 - Always `git add` specific files, never `-A` / `-.` — those grab files that belong to the next group.
-- CD to production happens when the base branch merges into `main` via a separate PR — that's a different ship invocation.
+- CD to production happens when the base branch merges into `main` via a separate PR — that's a different ship invocation. A project whose releases have their own rules (who reviews, tags, reverts) states them in its shipping policy; follow that for a release or a revert, never Steps 4–7 as written (Step 7's `--delete-branch` would delete the base branch).
 
 ## Integration with superpowers skills
 
