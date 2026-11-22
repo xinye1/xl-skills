@@ -57,6 +57,7 @@ Classify and announce the detected state in one line (e.g. "Resuming at merge fo
 
 | State | Signal | Entry point |
 |---|---|---|
+| **R. Release** | the user asks for a release: the base branch into `main` | Under a project's policy, its release procedure. Under the default policy, the separate run in the Rules: the head is the base branch and the PR's base is `main`. Nothing in `origin/main..origin/$BASE`: report "nothing to release" and stop. An open release PR: resume it at its sub-state (B to B4). Otherwise Steps 3 to 7. Step 7 merges without `--delete-branch`, and there is no Step 8 |
 | **A. Uncommitted changes** | dirty tree (`git status --porcelain` non-empty), no open PR for current branch | Step 1 |
 | **A2. Committed, not pushed** | clean tree on a feature branch with no open PR AND ((commits-ahead-of-upstream > 0) OR (`no-upstream` AND commits-beyond-base > 0)) | Steps 3b and 3c, then Step 4 |
 | **A3. Iteration on existing PR** | dirty tree OR commits-ahead-of-upstream > 0, on a branch whose own PR is currently open | Commit any dirty work (Step 2 logic — reuse the existing branch). Run Step 3b on the unpushed commits if they change behaviour. Then push (Step 5 push only — PR already exists), refresh the body, and re-evaluate as B / B2 / B3 / B4 |
@@ -65,11 +66,12 @@ Classify and announce the detected state in one line (e.g. "Resuming at merge fo
 | **B3. PR approved, CI not green** | clean + in sync, open PR with `reviewDecision: APPROVED`, at least one check pending or failing | Step 6 |
 | **B4. PR approved + CI green** | clean + in sync, open PR with `reviewDecision: APPROVED`, all checks passed (or `statusCheckRollup` empty — repo has no CI configured, treat as green) | Step 7 — skip straight to merge |
 | **C. Mixed** | dirty tree, current branch has no open PR, but other branches do | Handle dirty tree through Steps 1–5, then loop open PRs from Step 4 at their own detected sub-state |
-| **D. Post-merge cleanup** | `gh pr list --state merged` returns a PR whose `headRefName` still exists as a local branch | Step 8. If the user is currently *on* that branch and the tree is dirty, stop and flag — the work belongs on a fresh branch off base, not on a stale-merged one |
+| **D. Post-merge cleanup** | `gh pr list --state merged` returns a PR whose `headRefName` still exists as a local branch and isn't the base branch (a release leaves it) | Step 8. If the user is currently *on* that branch and the tree is dirty, stop and flag — the work belongs on a fresh branch off base, not on a stale-merged one |
 | **E. Nothing to do** | none of the above match (e.g. clean tree on base branch, no open PRs, no surviving post-merge branches) | Report "nothing to ship" and stop — no git operations |
 
 **Resolution order when multiple states match — evaluate top-to-bottom and stop at the first match:**
 
+0. **R**, only when the user asked for a release; otherwise skip it
 1. **D** — clean up surviving merged-PR branches before anything else
 2. **C** — multi-context work; iterate
 3. **A3** — PR for current branch already exists; iteration loop wins over generic "fresh changes"
@@ -166,7 +168,7 @@ Tests passing and a clean review say the code looks right. They are not proof th
 
 On a no, shipping stays blocked. The only way past is the user saying explicitly to ship without verification. Then the PR body says `Verification: skipped at the user's instruction (<their reason>)`, and Step 7 accepts that.
 
-**Starting a pstack skill.** pstack's skills can't be started with the Skill tool (they set `disable-model-invocation`; tested). Either the user types `/pstack:<name>`, or, with their go-ahead, you find the plugin's folder (`python3 -c "import json,os;p=json.load(open(os.path.expanduser('~/.claude/plugins/installed_plugins.json')))['plugins'];print(next(v[0]['installPath'] for k,v in sorted(p.items()) if k.startswith('pstack@') and v))"`), read its `docs/harness/claude-code.md`, then read `skills/<name>/SKILL.md` and follow it. A plugin installed during this session works this way at once, and its `/pstack:` commands appear from the next session. pstack supplies the generator, `create-verification-skill`, and its upkeep pass, `maintain-verification-skill`, which you suggest when a map has drifted in more than the features one change touches. Don't copy its text into this skill: it changes when the pin moves.
+**Starting a pstack skill.** pstack's skills can't be started with the Skill tool (they set `disable-model-invocation`; tested). Either the user types `/pstack:<name>`, or, with their go-ahead, you find the plugin's folder (`python3 -c "import json,os,sys;p=json.load(open(os.path.expanduser('~/.claude/plugins/installed_plugins.json')))['plugins'];m=sys.argv[1:];print(next(v[0]['installPath'] for k,v in sorted(p.items()) if v and (k=='pstack@'+m[0] if m else k.startswith('pstack@'))))" <marketplace>`, giving the marketplace when the project's policy supplies pstack (item 1 above); otherwise, as under the default policy, leave it off and it takes the first `pstack@` installed), read its `docs/harness/claude-code.md`, then read `skills/<name>/SKILL.md` and follow it. A plugin installed during this session works this way at once, and its `/pstack:` commands appear from the next session. pstack supplies the generator, `create-verification-skill`, and its upkeep pass, `maintain-verification-skill`, which you suggest when a map has drifted in more than the features one change touches. Don't copy its text into this skill: it changes when the pin moves.
 
 **On the verdict.**
 
@@ -366,7 +368,7 @@ Report a one-table summary of everything shipped this invocation:
 - `dev` (or the default base) accepts direct commits only for genuine hotfixes where the PR-review loop is inappropriate — rare.
 - Never skip hooks (`--no-verify`), bypass signing, or amend after a hook failure.
 - Always `git add` specific files, never `-A` / `-.` — those grab files that belong to the next group.
-- CD to production happens when the base branch merges into `main` via a separate PR — that's a different ship invocation. A project whose releases have their own rules (who reviews, tags, reverts) states them in its shipping policy; follow that for a release or a revert, never Steps 4–7 as written. Under the default policy a release is that separate run through the same steps, with one difference: Step 7 merges without `--delete-branch`, which would delete the base branch.
+- CD to production happens when the base branch merges into `main` via a separate PR — that's a different ship invocation. A project whose releases have their own rules (who reviews, tags, reverts) states them in its shipping policy; follow that for a release or a revert, never Steps 4–7 as written. Under the default policy a release is that separate run through the same steps (Step 0, state R), with two differences, so the base branch is never deleted: Step 7 merges without `--delete-branch`, and Step 8 doesn't run.
 
 ## Integration with superpowers skills
 

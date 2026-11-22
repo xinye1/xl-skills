@@ -23,8 +23,9 @@ delivery kit, 2026-11); where something was not tried it says so.
   written `<remote>` below. The base branch is the remote's default
   (`az repos show --org $ORG --project <project> -r <repo> --query defaultBranch -o tsv`), unless
   the project's shipping policy names another.
-- Work items take the place of GitHub issues: put `#<id>` in commit messages and pass
-  `--work-items <id>` when creating the PR. There is no `Closes #<n>` footer; whether completing
+- Work items take the place of GitHub issues. When the work has one, or the project's policy
+  requires one, put `#<id>` in commit messages and pass `--work-items <id>` when creating the PR.
+  No work item and no such rule: leave both out. There is no `Closes #<n>` footer; whether completing
   the PR moves the work item is the project's choice (its policy says).
 
 ## Step 0: detect the state
@@ -84,7 +85,7 @@ Publish the review to the PR as a comment thread (next section), since there is 
 D=<folder outside the repository>
 git push -u <remote> <branch>
 az repos pr create --org $ORG --project <project> --repository <repo> --source-branch <branch> --target-branch <base> \
-  --title "<conventional title>" --work-items <id> --description "$(cat "$D/description.md")"   # add --draft true for a draft
+  --title "<conventional title>" [--work-items <id>] --description "$(cat "$D/description.md")"   # add --draft true for a draft
 ```
 
 Post the first thread already resolved, so it doesn't block completion. Set the status in the
@@ -105,7 +106,8 @@ az devops invoke --org $ORG --area git --resource pullRequestThreads \
 To refresh the description later: read it (`az repos pr show --org $ORG --id <id> --query description -o tsv`),
 replace your sections, count it, and write it back with
 `az repos pr update --org $ORG --id <id> --description "$(cat "$D/description.md")"`. A later round
-of review or verification goes in a new resolved thread.
+of review or verification goes in a new resolved thread. If a push changed the `## Docs` table or
+the change map, that thread carries them again in full and says it replaces the first thread's.
 
 ## Step 6: wait for CI
 
@@ -116,7 +118,7 @@ it by itself. The build's log is in the pipeline run (`az pipelines runs show --
 
 ## Step 7: merge
 
-There is no `--match-head-commit`, and three things about the host matter here:
+There is no `--match-head-commit`, and four things about the host matter here:
 
 - **Take the PR's head from the fetched branch tip**, `git fetch <remote> <base> <branch>` then
   `git rev-parse <remote>/<branch>`, not from the PR's `lastMergeSourceCommit`, which lags a push
@@ -125,6 +127,12 @@ There is no `--match-head-commit`, and three things about the host matter here:
   approval given before a push still shows. So right before completing, fetch again and compare
   the tip with the commit the checks and the approval covered. If it moved, the new commits go
   back through review, CI and the docs ↔ code check first.
+- **Completion can't be pinned to that commit.** `az repos pr update` sends the PR's own
+  `lastMergeSourceCommit`, read just before, not the commit you checked, and Microsoft's REST
+  reference doesn't say the server refuses a completion when the source has moved. A push in the
+  seconds between that last fetch and the command still goes in. Run them back to back. After completing,
+  compare the completed PR's `lastMergeSourceCommit` (`az repos pr show --org $ORG --id <id> --query lastMergeSourceCommit.commitId -o tsv`)
+  with the checked commit; if they differ, unchecked commits went in: tell the user at once.
 - **Never pass `--bypass-policy`.** If completion is refused because a branch policy isn't met (a
   required reviewer, a minimum number of reviewers that doesn't count the author), stop and report
   the policy's message. Who may approve is the project's rule, not something to work around.
@@ -150,13 +158,18 @@ after a fetch proves the branch is merged before `git branch -d`.
 
 - Read the PR: `az repos pr show --org $ORG --id <id> -o json`. Keep `sourceRefName` and
   `targetRefName` (drop their `refs/heads/` prefix) and `description`. The threads, where the
-  author's `## Docs` table, change map and review record are:
+  author's `## Docs` table, change map and review record are (a later thread that says it replaces
+  the first thread's table and map is the current one):
   `az devops invoke --org $ORG --area git --resource pullRequestThreads --route-parameters project=<project> repositoryId=<repo> pullRequestId=<id> --http-method GET --api-version 7.1 -o json`.
+- If the PR's `forkSource` is set, it comes from a fork and its source branch isn't on `<remote>`
+  (a same-named branch there is another one). Say so and ask the user how to fetch it; its
+  repository is `forkSource.repository.remoteUrl`.
 - There is no `refs/pull`: fetch both branches, `git fetch <remote> <target-branch> <source-branch>`.
   The head is `git rev-parse <remote>/<source-branch>` and the base
   `git merge-base <remote>/<target-branch> <remote>/<source-branch>` (not `lastMergeSourceCommit`).
 - Vote with `az repos pr set-vote --org $ORG --id <id> --vote approve` (`wait-for-author` or
   `reject` to ask for changes), and post the review text as a thread (the `POST` above), with
   `"status": "closed"` for an approval and `"active"` for a change request. A review can't be
-  attached to the commit it checked, so read the PR again right before voting; a push after your
-  approval is the author's to flag.
+  attached to the commit it checked, and re-reading the PR doesn't show a push. So right before
+  voting, fetch the source branch again and compare its tip with the head you checked. If it moved,
+  check the new commits and ask the user again. A push after your vote is the author's to flag.
