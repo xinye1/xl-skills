@@ -70,7 +70,8 @@ az repos policy list --org $ORG --project <project> --repository-id $RID --branc
 
 An enabled build-validation policy runs on every push to the PR's branch unless its settings say
 it is queued by hand: treat the repository as **push-coupled** and review before the first push.
-No build policy: **no CI**. Whether a draft PR holds a build back was not tried here: don't rely
+A build policy queued by hand (`"manualQueueOnly": true` in its settings) runs only when queued:
+treat it as **pre-merge-gated**, with Step 6 queuing it. No build policy: **no CI**. Whether a draft PR holds a build back was not tried here: don't rely
 on a draft as the merge gate.
 
 Publish the review to the PR as a comment thread (next section), since there is no
@@ -122,7 +123,9 @@ the change map, that thread carries them again in full and says it replaces the 
 `az repos pr policy list` (above) shows the build's state; poll it rather than expecting a
 `--watch`. A failed or expired build is queued again with
 `az repos pr policy queue --org $ORG --id <id> --evaluation-id <evaluationId>`; a new push queues
-it by itself. The build's log is in the pipeline run (`az pipelines runs show --org $ORG --project <project> --id <buildId>`).
+it by itself, except a build policy queued by hand: nothing starts it, so queue it with that command
+once review is done and again after each later push (`evaluationId` is in
+`az repos pr policy list --org $ORG --id <id> -o json`). The build's log is in the pipeline run (`az pipelines runs show --org $ORG --project <project> --id <buildId>`).
 
 ## Step 7: merge
 
