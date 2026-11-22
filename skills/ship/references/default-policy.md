@@ -43,5 +43,7 @@ project's policy leaves out falls back to the skill.
 
 ## How work is tracked
 - A PR that delivers a tracked issue ends with `Closes #<n>`, one line per issue, plus the feature
-  parent when it completes one. No issue, no footer (Step 5).
+  parent when it completes one (Step 5).
+- A tracking issue or work item is not compulsory. When the work has none, say so, ask the user
+  once to confirm, and record it in the description (Step 5).
 - The merge closes the issue, never `gh issue close` (Step 5).

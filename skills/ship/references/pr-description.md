@@ -92,7 +92,7 @@ skipped at the user's instruction (<reason>)> at <short sha> against <base>, by 
 ## Review
 <Step 4's reviewer, rounds and outcome>
 
-Closes #<issue>
+Closes #<issue>   <!-- or, with no tracking issue: Tracking: none, confirmed by the user (SKILL.md Step 5) -->
 ```
 
 **Keep `## Why` and `## For the reviewer` to one screen.** They're what the reviewer reads in full. Everything below them is there to look things up in. If the decisions don't fit on one screen, the PR is probably doing too much: split it (Step 1).

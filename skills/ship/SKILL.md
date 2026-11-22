@@ -290,7 +290,7 @@ gh pr create [--draft] --base <base> --title "..." --body-file <body-file>
 
 When a later push changes the docs, or a check runs again, refresh your sections of the body. Keep the blocks other tools append, such as CodeRabbit's summary (the reference says how).
 
-The `Closes #<n>` footer is REQUIRED whenever the work has a tracking issue — the merge event is what closes delivered-work issues (never an out-of-band `gh issue close`). One line per issue this PR delivers, and when the PR completes a feature, also `Closes #<feature-parent>` — GitHub sub-issues don't auto-close the parent. Omit the footer only when no issue exists.
+The `Closes #<n>` footer is REQUIRED whenever the work has a tracking issue — the merge event is what closes delivered-work issues (never an out-of-band `gh issue close`). One line per issue this PR delivers, and when the PR completes a feature, also `Closes #<feature-parent>` — GitHub sub-issues don't auto-close the parent. A tracking issue is not compulsory, so that a personal repository or a team working without a board isn't held up. When the work has none, say so before opening the PR and ask the user once to confirm shipping without one. On a yes, omit the footer and end the description with `Tracking: none, confirmed by the user`. Don't ask again for the same PR. A project's shipping policy can make one compulsory, or say it is never needed.
 
 A repo's `.github/pull_request_template.md` isn't applied with `--body-file`; the reference says how to combine them.
 

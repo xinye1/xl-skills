@@ -23,9 +23,10 @@ delivery kit, 2026-11); where something was not tried it says so.
   written `<remote>` below. The base branch is the remote's default
   (`az repos show --org $ORG --project <project> -r <repo> --query defaultBranch -o tsv`), unless
   the project's shipping policy names another.
-- Work items take the place of GitHub issues. When the work has one, or the project's policy
-  requires one, put `#<id>` in commit messages and pass `--work-items <id>` when creating the PR.
-  No work item and no such rule: leave both out. There is no `Closes #<n>` footer; whether completing
+- Work items take the place of GitHub issues. When the work has one, put `#<id>` in commit
+  messages and pass `--work-items <id>` when creating the PR. When it has none, don't block and
+  don't invent one: follow SKILL.md Step 5 (say so, ask the user to confirm once, record it in the
+  description) and leave both out. There is no `Closes #<n>` footer; whether completing
   the PR moves the work item is the project's choice (its policy says).
 
 ## Step 0: detect the state
