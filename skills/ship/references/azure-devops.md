@@ -49,6 +49,13 @@ az repos pr policy list --org $ORG --id <id> --query "[].{policy:configuration.t
 - A merged PR's commits are reachable from `<remote>/<base>` when the project completes PRs as
   merge commits, so State D is: newest PR `completed`, and `git log <remote>/<base>..<branch>`
   empty after a fetch. If that log lists commits, they are new work.
+- A release (SKILL.md, "A release (state R)") works out the source as SKILL.md says (the
+  repository's default branch can be `main`), with `<remote>` for `origin`: fetch both branches
+  and count, then find an open release PR with
+  `az repos pr list --org $ORG --project <project> --repository <repo> --source-branch <source> --target-branch main --status active`.
+  These lists aren't filtered by author, so a teammate's release PR is found. In Steps 3 to 7
+  `<base>` is `main`: diffs are `<remote>/main...<remote>/<source>`, and Step 5 runs only
+  `az repos pr create` with `--source-branch <source> --target-branch main`.
 
 ## Step 4: when review runs
 

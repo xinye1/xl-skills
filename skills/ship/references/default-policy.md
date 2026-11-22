@@ -7,7 +7,12 @@ allows that (the "skipped at the user's instruction" paths). Step numbers refer 
 
 It is also the template for a project's own policy. Copy it to `docs/ship-policy.md`, a "Shipping
 policy" section in `CLAUDE.md`, or a plugin's `ship-policy` skill, and change what differs. What a
-project's policy leaves out falls back to the skill.
+project's policy leaves out falls back to the skill. A plugin's `ship-policy` skill must start its
+body with a line saying which repositories it governs, such as
+`Applies to: dev.azure.com/<org>/<project>` or `Applies to: github.com/<owner>/<repo>`: a plugin
+installed for the user is listed in every repository on the machine, and `ship` skips a plugin's
+policy without a matching line (SKILL.md, "Before Step 0"). `docs/ship-policy.md` and `CLAUDE.md`
+need no such line, because they live in the repository.
 
 ## Who approves
 - No person's approval is required before merging. The PR merges once Step 7's conditions hold.
@@ -33,12 +38,15 @@ project's policy leaves out falls back to the skill.
   files (Step 2, Rules).
 - Merge commits, the remote branch deleted, at the checked head, no auto-merge (Step 7).
 - Local cleanup with `git branch -d`, never `-D` (Step 8).
-- pstack is installed and pinned in the user's settings by `scripts/pstack-pin.sh` (Step 3b).
+- pstack is `pstack@cursor-plugins`, installed and pinned in the user's settings by
+  `scripts/pstack-pin.sh`. A copy from another marketplace isn't used (Step 3b).
 
 ## How a release reaches `main`
 - Never push to `main` directly or force-push it (Rules).
 - A release is its own PR from the base branch into `main`, a separate `ship` run through the same steps, started by asking for one (Step 0, state R; Rules).
-- The base branch is never deleted: its Step 7 merges without `--delete-branch`, and Step 8 doesn't run (Rules).
+- Its source is the branch the user names, else the base branch. When the base branch is `main`, `ship` asks which branch to release.
+- Its PR is found whoever opened it, after fetching both branches. Its diffs and review run against `main` (Step 0, "A release (state R)").
+- The release source is never deleted: its Step 7 merges without `--delete-branch`, and Step 8 doesn't run (Rules).
 - Direct commits to the base branch only for a genuine hotfix, rarely (Rules).
 
 ## How work is tracked

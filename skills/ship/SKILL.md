@@ -21,10 +21,12 @@ Two facts about the repository decide how the steps below are carried out. Settl
 
 **The project's shipping policy.** A team can have its own rules for shipping: who approves, which reviewers gate a push, how a release reaches `main`, whether a gate may ever be skipped, how work is tracked. Look for them in this order and use the first found:
 
-1. a skill named `ship-policy` supplied by a plugin (it shows in the skill list as `<plugin>:ship-policy`): load it with the Skill tool;
+1. a skill named `ship-policy` supplied by a plugin (it shows in the skill list as `<plugin>:ship-policy`) that applies to this repository (below);
 2. `docs/ship-policy.md` in the repository;
 3. a "Shipping policy" section in the repository's `CLAUDE.md`;
 4. none of these: the default policy, `references/default-policy.md` (in this skill's folder). It states this skill's own defaults, and is the template a project copies to write its own.
+
+**Whether a plugin's policy applies here.** A plugin installed for the user lists its skills in every repository on the machine, so a plugin's `ship-policy` must say which repositories it governs. Load each candidate with the Skill tool. The first line of its body must read `Applies to: <pattern>[, <pattern>…]`, each pattern `github.com/<owner>[/<repo>]` or `dev.azure.com/<org>/<project>[/<repo>]`. Write the remote `ship` pushes to in the same form: `github.com/<owner>/<repo>` (drop `git@`, `https://` and `.git`), or `dev.azure.com/<org>/<project>/<repo>` for each Azure DevOps form in `references/azure-devops.md`. A pattern matches when it equals that, or that starts with the pattern followed by `/`, ignoring case (`github.com/acme` matches `github.com/acme/app`, not `github.com/acme-labs/app`). A policy with no `Applies to:` line, or none that matches, doesn't apply: say so in one line ("`<plugin>:ship-policy` doesn't apply here: it is for `<patterns>`"), follow none of it, and go on down the list. If more than one matches, stop and ask the user which. The rule is the same for a plugin enabled only in this repository's `.claude/settings.json`. `docs/ship-policy.md` and `CLAUDE.md` need no such line: they live in the repository.
 
 Where the policy and this skill differ, the policy wins, and where it is silent this skill applies. A policy typically:
 
@@ -33,7 +35,7 @@ Where the policy and this skill differ, the policy wins, and where it is silent 
 - fixes a convention (the base branch, the remote's name, merge commits only, an issue or work-item number in every commit);
 - says where a tool comes from (pstack supplied by the project's own plugin set, so Step 3b's set-up check doesn't install or pin it).
 
-A project's policy can't be waived from inside a session: if the user asks for something it forbids, say what the policy says and stop. The default policy is the normal case for a personal repository. It adds nothing to this skill, so the user can still direct otherwise wherever this skill allows.
+A project's policy (one found above, and for a plugin's, one that applies here) can't be waived from inside a session: if the user asks for something it forbids, say what the policy says and stop. The default policy is the normal case for a personal repository. It adds nothing to this skill, so the user can still direct otherwise wherever this skill allows.
 
 ## Step 0: Detect starting state
 
@@ -57,7 +59,7 @@ Classify and announce the detected state in one line (e.g. "Resuming at merge fo
 
 | State | Signal | Entry point |
 |---|---|---|
-| **R. Release** | the user asks for a release: the base branch into `main` | Under a project's policy, its release procedure. Under the default policy, the separate run in the Rules: the head is the base branch and the PR's base is `main`. Nothing in `origin/main..origin/$BASE`: report "nothing to release" and stop. An open release PR: resume it at its sub-state (B to B4). Otherwise Steps 3 to 7. Step 7 merges without `--delete-branch`, and there is no Step 8 |
+| **R. Release** | the user asks for a release: the base branch into `main` | Under a project's policy, its release procedure. Under the default policy, "A release (state R)" below the table |
 | **A. Uncommitted changes** | dirty tree (`git status --porcelain` non-empty), no open PR for current branch | Step 1 |
 | **A2. Committed, not pushed** | clean tree on a feature branch with no open PR AND ((commits-ahead-of-upstream > 0) OR (`no-upstream` AND commits-beyond-base > 0)) | Steps 3b and 3c, then Step 4 |
 | **A3. Iteration on existing PR** | dirty tree OR commits-ahead-of-upstream > 0, on a branch whose own PR is currently open | Commit any dirty work (Step 2 logic — reuse the existing branch). Run Step 3b on the unpushed commits if they change behaviour. Then push (Step 5 push only — PR already exists), refresh the body, and re-evaluate as B / B2 / B3 / B4 |
@@ -66,7 +68,7 @@ Classify and announce the detected state in one line (e.g. "Resuming at merge fo
 | **B3. PR approved, CI not green** | clean + in sync, open PR with `reviewDecision: APPROVED`, at least one check pending or failing | Step 6 |
 | **B4. PR approved + CI green** | clean + in sync, open PR with `reviewDecision: APPROVED`, all checks passed (or `statusCheckRollup` empty — repo has no CI configured, treat as green) | Step 7 — skip straight to merge |
 | **C. Mixed** | dirty tree, current branch has no open PR, but other branches do | Handle dirty tree through Steps 1–5, then loop open PRs from Step 4 at their own detected sub-state |
-| **D. Post-merge cleanup** | `gh pr list --state merged` returns a PR whose `headRefName` still exists as a local branch and isn't the base branch (a release leaves it) | Step 8. If the user is currently *on* that branch and the tree is dirty, stop and flag — the work belongs on a fresh branch off base, not on a stale-merged one |
+| **D. Post-merge cleanup** | `gh pr list --state merged` returns a PR whose `headRefName` still exists as a local branch and isn't the base branch or the source of a PR into `main` (a release leaves it) | Step 8. If the user is currently *on* that branch and the tree is dirty, stop and flag — the work belongs on a fresh branch off base, not on a stale-merged one |
 | **E. Nothing to do** | none of the above match (e.g. clean tree on base branch, no open PRs, no surviving post-merge branches) | Report "nothing to ship" and stop — no git operations |
 
 **Resolution order when multiple states match — evaluate top-to-bottom and stop at the first match:**
@@ -79,6 +81,13 @@ Classify and announce the detected state in one line (e.g. "Resuming at merge fo
 5. **A2** — clean + committed + not pushed
 6. **B4** → **B3** → **B2** → **B** — most-advanced PR state wins (approved + green > approved + red > changes requested > awaiting review)
 7. **E** — nothing matched
+
+**A release (state R), under the default policy.** It is the separate run in the Rules: the head is the release source and the PR's base is `main`.
+
+1. **The source** is the branch the user named, else `$BASE` when it isn't `main`. When `$BASE` is `main` (the remote's default), ask which branch to release, suggesting `dev` if `origin/dev` exists. Never release `main` into itself.
+2. **Fetch both**, then count: `git fetch origin main <source>` and `git rev-list --count origin/main..origin/<source>`. At 0, report "nothing to release" and stop.
+3. **Find an open release PR, whoever opened it**: `gh pr list --state open --head <source> --base main --json number,author,title,isDraft,reviewDecision,statusCheckRollup` (no `--author`: a teammate may have opened it). If there is one, resume it at its sub-state (B to B4), with `<base>` as in item 4.
+4. **Otherwise Steps 3 to 7**, on `<source>` checked out and pulled. In those steps, and in a resumed release PR's, `<base>` is `main`, so every diff and review base is `origin/main...origin/<source>`: Step 3b's range, Step 3c's and Step 7's docs ↔ code check, and Step 4's `--base origin/main`. Step 5 has nothing to push: it opens the PR with `--head <source> --base main`. Step 7 merges without `--delete-branch`, and there is no Step 8.
 
 **Caveats:**
 
@@ -163,12 +172,12 @@ Tests passing and a clean review say the code looks right. They are not proof th
 
 **Set-up check: verification is a standard step, like review, so missing tools block.** Check these before anything else in this step. Each missing piece stops shipping until the user confirms setting it up:
 
-1. **pstack is installed** (always, even when the gate doesn't apply to this change): a key starting `pstack@` is under `plugins` in `~/.claude/plugins/installed_plugins.json`. When the project's shipping policy says pstack comes with the project's own plugins (the key is then `pstack@<their marketplace>`), that install and its pin are theirs: follow the policy's instructions if it is missing, and skip the rest of this item. If it isn't, stop and ask: "Verification needs pstack (poteto's skills, MIT). Install it now?" On a yes, run `bash <skill dir>/scripts/pstack-pin.sh bump <sha>`, where `<sha>` is the commit under "Pinned at" in xl-skills' `docs/upstream.md`. It pins the `cursor-plugins` marketplace to that commit in `~/.claude/settings.json` and installs pstack there. pstack is pinned, never auto-updated. If it is installed but that marketplace entry has no 40-character `ref`, offer the same `bump` to pin it. If the `SessionStart` hook that runs `pstack-pin.sh check --hook` is missing from `~/.claude/settings.json`, offer to add it (the README has the entry). It is what tells the user when upstream has moved, with what's new, and asks whether to move the pin.
+1. **pstack is installed** (always, even when the gate doesn't apply to this change): the key `pstack@cursor-plugins` is under `plugins` in `~/.claude/plugins/installed_plugins.json`. A pstack from another marketplace doesn't count: it isn't the pinned copy. When the project's shipping policy says pstack comes with the project's own plugins (the key is then `pstack@<their marketplace>`), that install and its pin are theirs: follow the policy's instructions if it is missing, and skip the rest of this item. If it isn't, stop and ask: "Verification needs pstack (poteto's skills, MIT). Install it now?" On a yes, run `bash <skill dir>/scripts/pstack-pin.sh bump <sha>`, where `<sha>` is the commit under "Pinned at" in xl-skills' `docs/upstream.md`. It pins the `cursor-plugins` marketplace to that commit in `~/.claude/settings.json` and installs pstack there. pstack is pinned, never auto-updated. If it is installed but that marketplace entry has no 40-character `ref`, offer the same `bump` to pin it. If the `SessionStart` hook that runs `pstack-pin.sh check --hook` is missing from `~/.claude/settings.json`, offer to add it (the README has the entry). It is what tells the user when upstream has moved, with what's new, and asks whether to move the pin.
 2. **The repo has a verification skill** (only when the gate applies): `.claude/skills/verify-*/SKILL.md`. If it doesn't, stop and ask: "This repo has no verification skill. Generate one now with pstack's `create-verification-skill`? It interviews the repo, writes the skill and a feature map, and proves it end to end once." On a yes, run the generator (below), then commit its output as its own commit on this branch (`chore(verify): add verify-<app> skill`), so the PR that first needs it carries it. Then run the gate with it.
 
 On a no, shipping stays blocked. The only way past is the user saying explicitly to ship without verification. Then the PR body says `Verification: skipped at the user's instruction (<their reason>)`, and Step 7 accepts that.
 
-**Starting a pstack skill.** pstack's skills can't be started with the Skill tool (they set `disable-model-invocation`; tested). Either the user types `/pstack:<name>`, or, with their go-ahead, you find the plugin's folder (`python3 -c "import json,os,sys;p=json.load(open(os.path.expanduser('~/.claude/plugins/installed_plugins.json')))['plugins'];m=sys.argv[1:];print(next(v[0]['installPath'] for k,v in sorted(p.items()) if v and (k=='pstack@'+m[0] if m else k.startswith('pstack@'))))" <marketplace>`, giving the marketplace when the project's policy supplies pstack (item 1 above); otherwise, as under the default policy, leave it off and it takes the first `pstack@` installed), read its `docs/harness/claude-code.md`, then read `skills/<name>/SKILL.md` and follow it. A plugin installed during this session works this way at once, and its `/pstack:` commands appear from the next session. pstack supplies the generator, `create-verification-skill`, and its upkeep pass, `maintain-verification-skill`, which you suggest when a map has drifted in more than the features one change touches. Don't copy its text into this skill: it changes when the pin moves.
+**Starting a pstack skill.** pstack's skills can't be started with the Skill tool (they set `disable-model-invocation`; tested). Either the user types `/pstack:<name>`, or, with their go-ahead, you find the plugin's folder (`python3 -c "import json,os,sys;p=json.load(open(os.path.expanduser('~/.claude/plugins/installed_plugins.json')))['plugins'];k='pstack@'+(sys.argv[1] if sys.argv[1:] else 'cursor-plugins');v=p.get(k);print(v[0]['installPath']) if v else sys.exit('not installed: '+k)" <marketplace>`, giving the marketplace when the project's policy supplies pstack (item 1 above); otherwise leave it off and it takes `pstack@cursor-plugins`, the copy item 1 pins, never another marketplace's), read its `docs/harness/claude-code.md`, then read `skills/<name>/SKILL.md` and follow it. A plugin installed during this session works this way at once, and its `/pstack:` commands appear from the next session. pstack supplies the generator, `create-verification-skill`, and its upkeep pass, `maintain-verification-skill`, which you suggest when a map has drifted in more than the features one change touches. Don't copy its text into this skill: it changes when the pin moves.
 
 **On the verdict.**
 
@@ -368,7 +377,7 @@ Report a one-table summary of everything shipped this invocation:
 - `dev` (or the default base) accepts direct commits only for genuine hotfixes where the PR-review loop is inappropriate — rare.
 - Never skip hooks (`--no-verify`), bypass signing, or amend after a hook failure.
 - Always `git add` specific files, never `-A` / `-.` — those grab files that belong to the next group.
-- CD to production happens when the base branch merges into `main` via a separate PR — that's a different ship invocation. A project whose releases have their own rules (who reviews, tags, reverts) states them in its shipping policy; follow that for a release or a revert, never Steps 4–7 as written. Under the default policy a release is that separate run through the same steps (Step 0, state R), with two differences, so the base branch is never deleted: Step 7 merges without `--delete-branch`, and Step 8 doesn't run.
+- CD to production happens when the base branch merges into `main` via a separate PR — that's a different ship invocation. A project whose releases have their own rules (who reviews, tags, reverts) states them in its shipping policy; follow that for a release or a revert, never Steps 4–7 as written. Under the default policy a release is that separate run through the same steps (Step 0, "A release (state R)"), with `main` as the base and the release source as the head, and two differences, so the source is never deleted: Step 7 merges without `--delete-branch`, and Step 8 doesn't run.
 
 ## Integration with superpowers skills
 
