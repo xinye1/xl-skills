@@ -11,7 +11,7 @@ The workflow is designed so that *any* starting state — uncommitted work, alre
 
 ## Before Step 0: the host, and the project's shipping policy
 
-Two facts about the repository decide how the steps below are carried out. Settle both first, and name them in Step 0's one-line announcement ("Azure DevOps, with the project's policy `guardrail:ship-policy`").
+Two facts about the repository decide how the steps below are carried out. Settle both first, and name them in Step 0's one-line announcement ("Azure DevOps, with the project's policy `guardrail:ship-policy`", or "GitHub, with the default policy").
 
 **The host.** Look at the remote (`git remote -v`):
 
@@ -23,7 +23,8 @@ Two facts about the repository decide how the steps below are carried out. Settl
 
 1. a skill named `ship-policy` supplied by a plugin (it shows in the skill list as `<plugin>:ship-policy`): load it with the Skill tool;
 2. `docs/ship-policy.md` in the repository;
-3. a "Shipping policy" section in the repository's `CLAUDE.md`.
+3. a "Shipping policy" section in the repository's `CLAUDE.md`;
+4. none of these: the default policy, `references/default-policy.md` (in this skill's folder). It states this skill's own defaults, and is the template a project copies to write its own.
 
 Where the policy and this skill differ, the policy wins, and where it is silent this skill applies. A policy typically:
 
@@ -32,7 +33,7 @@ Where the policy and this skill differ, the policy wins, and where it is silent 
 - fixes a convention (the base branch, the remote's name, merge commits only, an issue or work-item number in every commit);
 - says where a tool comes from (pstack supplied by the project's own plugin set, so Step 3b's set-up check doesn't install or pin it).
 
-A policy can't be waived from inside a session: if the user asks for something it forbids, say what the policy says and stop. No policy found is the normal case for a personal repository: this skill applies as written.
+A project's policy can't be waived from inside a session: if the user asks for something it forbids, say what the policy says and stop. The default policy is the normal case for a personal repository. It adds nothing to this skill, so the user can still direct otherwise wherever this skill allows.
 
 ## Step 0: Detect starting state
 
