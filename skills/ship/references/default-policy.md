@@ -47,6 +47,7 @@ need no such line, because they live in the repository.
 - Its source is the branch the user names, else the base branch. When the base branch is `main`, `ship` asks which branch to release.
 - Its PR is found whoever opened it, after fetching both branches. Its diffs and review run against `main` (Step 0, "A release (state R)").
 - The release source is never deleted: its Step 7 merges without `--delete-branch`, and Step 8 doesn't run (Rules).
+- A fix found during a release goes through its own PR into the source branch, never a direct commit to it; the release run then resumes from the updated source (Rules).
 - Direct commits to the base branch only for a genuine hotfix, rarely (Rules).
 
 ## How work is tracked

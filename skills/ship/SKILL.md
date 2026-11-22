@@ -87,7 +87,7 @@ Classify and announce the detected state in one line (e.g. "Resuming at merge fo
 1. **The source** is the branch the user named, else `$BASE` when it isn't `main`. When `$BASE` is `main` (the remote's default), ask which branch to release, suggesting `dev` if `origin/dev` exists. Never release `main` into itself.
 2. **Fetch both**, then count: `git fetch origin main <source>` and `git rev-list --count origin/main..origin/<source>`. At 0, report "nothing to release" and stop.
 3. **Find an open release PR, whoever opened it**: `gh pr list --state open --head <source> --base main --json number,author,title,isDraft,reviewDecision,statusCheckRollup` (no `--author`: a teammate may have opened it). If there is one, resume it at its sub-state (B to B4), with `<base>` as in item 4.
-4. **Otherwise Steps 3 to 7**, on `<source>` checked out and pulled. In those steps, and in a resumed release PR's, `<base>` is `main`, so every diff and review base is `origin/main...origin/<source>`: Step 3b's range, Step 3c's and Step 7's docs ↔ code check, and Step 4's `--base origin/main`. Step 5 has nothing to push: it opens the PR with `--head <source> --base main`. Step 7 merges without `--delete-branch`, and there is no Step 8.
+4. **Otherwise Steps 3 to 7**, on `<source>` checked out and pulled. In those steps, and in a resumed release PR's, `<base>` is `main`, so every diff and review base is `origin/main...origin/<source>`: Step 3b's range, Step 3c's and Step 7's docs ↔ code check, and Step 4's `--base origin/main`. Step 5 has nothing to push: it opens the PR with `--head <source> --base main`. Step 7 merges without `--delete-branch`, and there is no Step 8. A finding from any of these steps (review, verification, the docs ↔ code check, CI) is never fixed by committing to `<source>`: the fix goes through its own PR into `<source>` (Rules), and the release run then resumes from the updated source.
 
 **Caveats:**
 
@@ -378,6 +378,7 @@ Report a one-table summary of everything shipped this invocation:
 - Never skip hooks (`--no-verify`), bypass signing, or amend after a hook failure.
 - Always `git add` specific files, never `-A` / `-.` — those grab files that belong to the next group.
 - CD to production happens when the base branch merges into `main` via a separate PR — that's a different ship invocation. A project whose releases have their own rules (who reviews, tags, reverts) states them in its shipping policy; follow that for a release or a revert, never Steps 4–7 as written. Under the default policy a release is that separate run through the same steps (Step 0, "A release (state R)"), with `main` as the base and the release source as the head, and two differences, so the source is never deleted: Step 7 merges without `--delete-branch`, and Step 8 doesn't run.
+- A fix found during a release (state R) goes through its own PR into the release's source branch, never a direct commit to the source branch, hotfix or not. The release run then resumes from the updated source: fetch it again, and the release PR's diff, review and checks cover the new head.
 
 ## Integration with superpowers skills
 
