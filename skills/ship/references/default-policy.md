@@ -37,8 +37,8 @@ project's policy leaves out falls back to the skill.
 
 ## How a release reaches `main`
 - Never push to `main` directly or force-push it (Rules).
-- A release is its own PR from the base branch into `main`, a separate `ship` run (Rules).
-- It is merged without `--delete-branch`, which would delete the base branch (Rules).
+- A release is its own PR from the base branch into `main`, a separate `ship` run through the same steps (Rules).
+- Its Step 7 merges without `--delete-branch`, which would delete the base branch (Rules).
 - Direct commits to the base branch only for a genuine hotfix, rarely (Rules).
 
 ## How work is tracked

@@ -366,7 +366,7 @@ Report a one-table summary of everything shipped this invocation:
 - `dev` (or the default base) accepts direct commits only for genuine hotfixes where the PR-review loop is inappropriate — rare.
 - Never skip hooks (`--no-verify`), bypass signing, or amend after a hook failure.
 - Always `git add` specific files, never `-A` / `-.` — those grab files that belong to the next group.
-- CD to production happens when the base branch merges into `main` via a separate PR — that's a different ship invocation. A project whose releases have their own rules (who reviews, tags, reverts) states them in its shipping policy; follow that for a release or a revert, never Steps 4–7 as written (Step 7's `--delete-branch` would delete the base branch).
+- CD to production happens when the base branch merges into `main` via a separate PR — that's a different ship invocation. A project whose releases have their own rules (who reviews, tags, reverts) states them in its shipping policy; follow that for a release or a revert, never Steps 4–7 as written. Under the default policy a release is that separate run through the same steps, with one difference: Step 7 merges without `--delete-branch`, which would delete the base branch.
 
 ## Integration with superpowers skills
 

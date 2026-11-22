@@ -14,6 +14,7 @@ delivery kit, 2026-11); where something was not tried it says so.
   (`git remote get-url <remote>`):
   - `git@ssh.dev.azure.com:v3/<org>/<project>/<repo>`
   - `https://[<user>@]dev.azure.com/<org>/<project>/_git/<repo>`
+  - `https://<org>.visualstudio.com/<project>/_git/<repo>` (the older form)
 
   Below, `$ORG` is `https://dev.azure.com/<org>`. Most `az repos` commands take
   `--org $ORG --project <project>`; `az repos pr show`, `update` and `set-vote` take `--org` only.
