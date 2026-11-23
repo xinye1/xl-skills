@@ -30,7 +30,7 @@ pstack is Lauren Tan's ("poteto") skill set, MIT licensed, published in
 `pstack`, Claude Code variant in `harness/pstack/claude-code/`). It is installed at user scope and
 pinned to a commit (see the README).
 
-**Pinned at:** `e58dd043600587dbaf58ba315e7f2b38373eeb43` (version 0.15.44), since 2026-11-19. Before: `e1cc031` (0.15.43), from 2026-11-17.
+**Pinned at:** `7a583913eb1b8d1a0ee76753d1a2cf072e7b54f9` (version 0.15.46), since 2026-11-23. Before: `e58dd04` (0.15.44), from 2026-11-19; `e1cc031` (0.15.43), from 2026-11-17.
 
 ### Pinned, and moved only with the owner's go-ahead
 
