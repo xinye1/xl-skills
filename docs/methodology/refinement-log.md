@@ -328,6 +328,8 @@ The eleventh docs ↔ code check noted that `review-focus` never said how to get
 
 "Pinned at" in `docs/upstream.md` now records it.
 
+**Second bump, 0.15.44 → 0.15.46 (2026-11-23).** `check` reported two upstream changes: `/statechart` runs on native Windows and reads TLC's `\r\n` line ends (cursor/plugins#1292), and the Gemini panel seat runs at `gemini-4-neon-xhigh` (#1284). The skills that changed were arena, poteto-mode, setup-pstack and statechart, plus `docs/harness/claude-code.md`. None of the skills xl-skills uses changed. The owner approved ("yes move pstack pin"), and `pstack-pin.sh bump 7a58391…` re-added the marketplace at that commit and updated the plugin 0.15.44 → 0.15.46. "Pinned at" in `docs/upstream.md` records it.
+
 **Considered and rejected.**
 
 - *Bump only through a PR, as the kit does.* The pin that takes effect is in user settings, which no repo holds. So the owner's yes runs `bump` at once, and the record in `docs/upstream.md` follows through `ship`.
